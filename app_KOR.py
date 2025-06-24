@@ -51,7 +51,7 @@ def load_config_from_json():
             "transport": "stdio"
         }
     }
-    
+
     try:
         if os.path.exists(CONFIG_FILE_PATH):
             with open(CONFIG_FILE_PATH, "r", encoding="utf-8") as f:
@@ -71,7 +71,7 @@ def save_config_to_json(config):
 
     매개변수:
         config (dict): 저장할 설정
-    
+
     반환값:
         bool: 저장 성공 여부
     """
@@ -136,9 +136,9 @@ st.title("💬 MCP 도구 활용 에이전트")
 st.markdown("✨ MCP 도구를 활용한 ReAct 에이전트에게 질문해보세요.")
 
 SYSTEM_PROMPT = """<ROLE>
-You are a smart agent with an ability to use tools. 
+You are a smart agent with an ability to use tools.
 You will be given a question and you will use the tools to answer the question.
-Pick the most relevant tool to answer the question. 
+Pick the most relevant tool to answer the question.
 If you are failed to answer the question, try different tools to get context.
 Your answer should be very polite and professional.
 </ROLE>
@@ -168,7 +168,7 @@ Guidelines:
 - Skip providing the source if the source is not URL.
 - Answer in the same language as the question.
 - Answer should be concise and to the point.
-- Avoid response your output with any other information than the answer and the source.  
+- Avoid response your output with any other information than the answer and the source.
 </INSTRUCTIONS>
 
 ----
@@ -559,7 +559,7 @@ with st.sidebar:
         # config.json 파일에서 설정 로드하여 표시
         loaded_config = load_config_from_json()
         default_config_text = json.dumps(loaded_config, indent=2, ensure_ascii=False)
-        
+
         # pending config가 없으면 기존 mcp_config_text 기반으로 생성
         if "pending_mcp_config" not in st.session_state:
             try:
@@ -746,7 +746,7 @@ with st.sidebar:
             save_result = save_config_to_json(st.session_state.pending_mcp_config)
             if not save_result:
                 st.error("❌ 설정 파일 저장에 실패했습니다.")
-            
+
             progress_bar.progress(15)
 
             # 세션 초기화 준비
