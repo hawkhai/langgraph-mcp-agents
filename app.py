@@ -51,7 +51,7 @@ def load_config_from_json():
             "transport": "stdio"
         }
     }
-    
+
     try:
         if os.path.exists(CONFIG_FILE_PATH):
             with open(CONFIG_FILE_PATH, "r", encoding="utf-8") as f:
@@ -71,7 +71,7 @@ def save_config_to_json(config):
 
     Args:
         config (dict): Settings to save
-    
+
     Returns:
         bool: Save success status
     """
@@ -136,9 +136,9 @@ st.title("💬 MCP Tool Utilization Agent")
 st.markdown("✨ Ask questions to the ReAct agent that utilizes MCP tools.")
 
 SYSTEM_PROMPT = """<ROLE>
-You are a smart agent with an ability to use tools. 
+You are a smart agent with an ability to use tools.
 You will be given a question and you will use the tools to answer the question.
-Pick the most relevant tool to answer the question. 
+Pick the most relevant tool to answer the question.
 If you are failed to answer the question, try different tools to get context.
 Your answer should be very polite and professional.
 </ROLE>
@@ -168,7 +168,7 @@ Guidelines:
 - Skip providing the source if the source is not URL.
 - Answer in the same language as the question.
 - Answer should be concise and to the point.
-- Avoid response your output with any other information than the answer and the source.  
+- Avoid response your output with any other information than the answer and the source.
 </INSTRUCTIONS>
 
 ----
@@ -189,6 +189,7 @@ OUTPUT_TOKEN_INFO = {
     "claude-3-7-sonnet-latest": {"max_tokens": 64000},
     "gpt-4o": {"max_tokens": 16000},
     "gpt-4o-mini": {"max_tokens": 16000},
+    "qwen-plus-latest": {"max_tokens": 16000},
 }
 
 # Initialize session state
@@ -220,8 +221,8 @@ async def cleanup_mcp_client():
     """
     if "mcp_client" in st.session_state and st.session_state.mcp_client is not None:
         try:
-
-            await st.session_state.mcp_client.__aexit__(None, None, None)
+            # Simply set to None as we're not using context manager anymore
+            # The client will be garbage collected
             st.session_state.mcp_client = None
         except Exception as e:
             import traceback
@@ -449,8 +450,8 @@ async def initialize_session(mcp_config=None):
             # Load settings from config.json file
             mcp_config = load_config_from_json()
         client = MultiServerMCPClient(mcp_config)
-        await client.__aenter__()
-        tools = client.get_tools()
+        # Use the recommended approach instead of context manager
+        tools = await client.get_tools()
         st.session_state.tool_count = len(tools)
         st.session_state.mcp_client = client
 
@@ -466,6 +467,16 @@ async def initialize_session(mcp_config=None):
                 model=selected_model,
                 temperature=0.1,
                 max_tokens=OUTPUT_TOKEN_INFO[selected_model]["max_tokens"],
+            )
+        elif selected_model in [
+            "qwen-plus-latest",
+        ]:
+            model = ChatOpenAI(
+                model=selected_model,
+                temperature=0.1,
+                max_tokens=OUTPUT_TOKEN_INFO[selected_model]["max_tokens"],
+    openai_api_key=os.getenv("DASHSCOPE_API_KEY"),
+    openai_api_base="https://dashscope.aliyuncs.com/compatible-mode/v1"  # 千问兼容 OpenAI 的 URL
             )
         else:  # Use OpenAI model
             model = ChatOpenAI(
@@ -507,6 +518,11 @@ with st.sidebar:
     has_openai_key = os.environ.get("OPENAI_API_KEY") is not None
     if has_openai_key:
         available_models.extend(["gpt-4o", "gpt-4o-mini"])
+
+    # "qwen-plus-latest"
+    has_openai_key = os.environ.get("DASHSCOPE_API_KEY") is not None
+    if has_openai_key:
+        available_models.extend(["qwen-plus-latest",])
 
     # Display message if no models are available
     if not available_models:
@@ -571,7 +587,7 @@ with st.sidebar:
         # Load settings from config.json file
         loaded_config = load_config_from_json()
         default_config_text = json.dumps(loaded_config, indent=2, ensure_ascii=False)
-        
+
         # Create pending config based on existing mcp_config_text if not present
         if "pending_mcp_config" not in st.session_state:
             try:
@@ -763,7 +779,7 @@ with st.sidebar:
             save_result = save_config_to_json(st.session_state.pending_mcp_config)
             if not save_result:
                 st.error("❌ Failed to save settings file.")
-            
+
             progress_bar.progress(15)
 
             # Prepare session initialization

@@ -5,5 +5,16 @@
       "./mcp_server_time.py"
     ],
     "transport": "stdio"
+  },
+  "local-process-manager": {
+    "command": "I:/pdfai_serv/mcp/Python310-agent/Python310-agent/python.exe",
+    "args": [
+      "I:/pdfai_serv/mcp/evaluation/langchain/process_manager_fastmcp.py"
+    ],
+    "env": {
+      "PYTHONPATH": "I:/pdfai_serv/mcp/evaluation/langchain"
+    },
+    "disabled": false,
+    "transport": "stdio"
   }
 }
