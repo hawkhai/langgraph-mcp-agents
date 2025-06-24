@@ -144,7 +144,7 @@ if __name__ == '__main__':
     from langchain_core.messages import HumanMessage
     llm = ChatTongyi(
         model="qwen-plus",
-        api_key="sk-ef5c5958a4234caba5b955d15eda4072",  # 替换为你的 key
+        api_key=os.environ.get("DASHSCOPE_API_KEY"),  # 替换为你的 key
         temperature=0.7,
         top_p=0.8,
         enable_search=False  # 可选参数，仅支持某些模型
