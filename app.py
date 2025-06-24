@@ -202,7 +202,7 @@ if "session_initialized" not in st.session_state:
         120  # Response generation time limit (seconds), default 120 seconds
     )
     st.session_state.selected_model = (
-        "claude-3-7-sonnet-latest"  # Default model selection
+        "qwen-plus-latest"  # Default model selection
     )
     st.session_state.recursion_limit = 100  # Recursion call limit, default 100
 

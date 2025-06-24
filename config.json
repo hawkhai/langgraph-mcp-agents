@@ -7,12 +7,12 @@
     "transport": "stdio"
   },
   "local-process-manager": {
-    "command": "I:/pdfai_serv/mcp/Python310-agent/Python310-agent/python.exe",
+    "command": "python",
     "args": [
-      "I:/pdfai_serv/mcp/evaluation/langchain/process_manager_fastmcp.py"
+      "./process_manager_fastmcp.py"
     ],
     "env": {
-      "PYTHONPATH": "I:/pdfai_serv/mcp/evaluation/langchain"
+      "PYTHONPATH": "."
     },
     "disabled": false,
     "transport": "stdio"
