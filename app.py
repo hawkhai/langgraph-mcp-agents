@@ -88,58 +88,58 @@ if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
 # Main app uses wide layout
-st.set_page_config(page_title="Agent with MCP Tools", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="MCP 工具智能代理", page_icon="🧠", layout="wide")
 
 st.sidebar.divider()  # Add divider
 
 # Existing page title and description
-st.title("💬 MCP Tool Utilization Agent")
-st.markdown("✨ Ask questions to the ReAct agent that utilizes MCP tools.")
+st.title("💬 MCP 工具智能代理")
+st.markdown("✨ 请输入问题，智能代理将使用 MCP 工具来回答。")
 
 SYSTEM_PROMPT = """<ROLE>
-You are a smart agent with an ability to use tools.
-You will be given a question and you will use the tools to answer the question.
-Pick the most relevant tool to answer the question.
-If you are failed to answer the question, try different tools to get context.
-Your answer should be very polite and professional.
+你是一位智能代理，能够使用工具来回答问题。
+你将被给予一个问题，并使用工具来回答。
+选择最相关的工具来回答问题。
+如果你无法回答问题，请尝试使用不同的工具来获取上下文。
+你的答案应该非常礼貌和专业。
 </ROLE>
 
 ----
 
 <INSTRUCTIONS>
-Step 1: Analyze the question
-- Analyze user's question and final goal.
-- If the user's question is consist of multiple sub-questions, split them into smaller sub-questions.
+步骤 1：分析问题
+- 分析用户的问题和最终目标。
+- 如果用户的问题包含多个子问题，请将它们分解为较小的子问题。
 
-Step 2: Pick the most relevant tool
-- Pick the most relevant tool to answer the question.
-- If you are failed to answer the question, try different tools to get context.
+步骤 2：选择最相关的工具
+- 选择最相关的工具来回答问题。
+- 如果你无法回答问题，请尝试使用不同的工具来获取上下文。
 
-Step 3: Answer the question
-- Answer the question in the same language as the question.
-- Your answer should be very polite and professional.
+步骤 3：回答问题
+- 用相同的语言回答问题。
+- 你的答案应该非常礼貌和专业。
 
-Step 4: Provide the source of the answer(if applicable)
-- If you've used the tool, provide the source of the answer.
-- Valid sources are either a website(URL) or a document(PDF, etc).
+步骤 4：提供答案来源（如果适用）
+- 如果你使用了工具，请提供答案来源。
+- 有效来源是网站（URL）或文档（PDF 等）。
 
-Guidelines:
-- If you've used the tool, your answer should be based on the tool's output(tool's output is more important than your own knowledge).
-- If you've used the tool, and the source is valid URL, provide the source(URL) of the answer.
-- Skip providing the source if the source is not URL.
-- Answer in the same language as the question.
-- Answer should be concise and to the point.
-- Avoid response your output with any other information than the answer and the source.
+指南：
+- 如果你使用了工具，你的答案应该基于工具的输出（工具的输出比你自己的知识更重要）。
+- 如果你使用了工具，并且来源是有效的 URL，请提供答案来源（URL）。
+- 如果来源不是 URL，请跳过提供来源。
+- 用相同的语言回答问题。
+- 答案应该简洁明了。
+- 避免在输出中包含除答案和来源以外的任何信息。
 </INSTRUCTIONS>
 
 ----
 
 <OUTPUT_FORMAT>
-(concise answer to the question)
+(简洁的答案)
 
-**Source**(if applicable)
-- (source1: valid URL)
-- (source2: valid URL)
+**来源**（如果适用）
+- (来源 1：有效 URL)
+- (来源 2：有效 URL)
 - ...
 </OUTPUT_FORMAT>
 """
@@ -218,7 +218,7 @@ def print_message():
                     and st.session_state.history[i + 1]["role"] == "assistant_tool"
                 ):
                     # Display tool call information in the same container as an expander
-                    with st.expander("🔧 Tool Call Information", expanded=False):
+                    with st.expander("🔧 工具调用信息", expanded=False):
                         st.markdown(st.session_state.history[i + 1]["content"])
                     i += 2  # Increment by 2 as we processed two messages together
                 else:
@@ -271,7 +271,7 @@ def get_streaming_callback(text_placeholder, tool_placeholder):
                             "\n```json\n" + str(tool_call_chunk) + "\n```\n"
                         )
                     with tool_placeholder.expander(
-                        "🔧 Tool Call Information", expanded=True
+                        "🔧 工具调用信息", expanded=True
                     ):
                         st.markdown("".join(accumulated_tool))
             # Process if tool_calls attribute exists (mainly occurs in OpenAI models)
@@ -283,7 +283,7 @@ def get_streaming_callback(text_placeholder, tool_placeholder):
                 tool_call_info = message_content.tool_calls[0]
                 accumulated_tool.append("\n```json\n" + str(tool_call_info) + "\n```\n")
                 with tool_placeholder.expander(
-                    "🔧 Tool Call Information", expanded=True
+                    "🔧 工具调用信息", expanded=True
                 ):
                     st.markdown("".join(accumulated_tool))
             # Process if content is a simple string
@@ -298,7 +298,7 @@ def get_streaming_callback(text_placeholder, tool_placeholder):
                 tool_call_info = message_content.invalid_tool_calls[0]
                 accumulated_tool.append("\n```json\n" + str(tool_call_info) + "\n```\n")
                 with tool_placeholder.expander(
-                    "🔧 Tool Call Information (Invalid)", expanded=True
+                    "🔧 工具调用信息（无效）", expanded=True
                 ):
                     st.markdown("".join(accumulated_tool))
             # Process if tool_call_chunks attribute exists
@@ -311,7 +311,7 @@ def get_streaming_callback(text_placeholder, tool_placeholder):
                     "\n```json\n" + str(tool_call_chunk) + "\n```\n"
                 )
                 with tool_placeholder.expander(
-                    "🔧 Tool Call Information", expanded=True
+                    "🔧 工具调用信息", expanded=True
                 ):
                     st.markdown("".join(accumulated_tool))
             # Process if tool_calls exists in additional_kwargs (supports various model compatibility)
@@ -322,7 +322,7 @@ def get_streaming_callback(text_placeholder, tool_placeholder):
                 tool_call_info = message_content.additional_kwargs["tool_calls"][0]
                 accumulated_tool.append("\n```json\n" + str(tool_call_info) + "\n```\n")
                 with tool_placeholder.expander(
-                    "🔧 Tool Call Information", expanded=True
+                    "🔧 工具调用信息", expanded=True
                 ):
                     st.markdown("".join(accumulated_tool))
         # Process if it's a tool message (tool response)
@@ -330,7 +330,7 @@ def get_streaming_callback(text_placeholder, tool_placeholder):
             accumulated_tool.append(
                 "\n```json\n" + str(message_content.content) + "\n```\n"
             )
-            with tool_placeholder.expander("🔧 Tool Call Information", expanded=True):
+            with tool_placeholder.expander("🔧 工具调用信息", expanded=True):
                 st.markdown("".join(accumulated_tool))
         return None
 
@@ -374,7 +374,7 @@ async def process_query(query, text_placeholder, tool_placeholder, timeout_secon
                     timeout=timeout_seconds,
                 )
             except asyncio.TimeoutError:
-                error_msg = f"⏱️ Request time exceeded {timeout_seconds} seconds. Please try again later."
+                error_msg = f"⏱️ 请求时间超过 {timeout_seconds} 秒。请稍候再试。"
                 return {"error": error_msg}, error_msg, ""
 
             final_text = "".join(accumulated_text_obj)
@@ -382,14 +382,14 @@ async def process_query(query, text_placeholder, tool_placeholder, timeout_secon
             return response, final_text, final_tool
         else:
             return (
-                {"error": "🚫 Agent has not been initialized."},
-                "🚫 Agent has not been initialized.",
+                {"error": "🚫 代理尚未初始化。"},
+                "🚫 代理尚未初始化。",
                 "",
             )
     except Exception as e:
         import traceback
 
-        error_msg = f"❌ Error occurred during query processing: {str(e)}\n{traceback.format_exc()}"
+        error_msg = f"❌ 发生错误：{str(e)}\n{traceback.format_exc()}"
         return {"error": error_msg}, error_msg, ""
 
 
@@ -403,7 +403,7 @@ async def initialize_session(mcp_config=None):
     Returns:
         bool: Initialization success status
     """
-    with st.spinner("🔄 Connecting to MCP server..."):
+    with st.spinner("🔄 正在连接到 MCP 服务器..."):
         # First safely clean up existing client
         await cleanup_mcp_client()
 
@@ -436,8 +436,8 @@ async def initialize_session(mcp_config=None):
                 model=selected_model,
                 temperature=0.1,
                 max_tokens=OUTPUT_TOKEN_INFO[selected_model]["max_tokens"],
-    openai_api_key=os.getenv("DASHSCOPE_API_KEY"),
-    openai_api_base="https://dashscope.aliyuncs.com/compatible-mode/v1"  # 千问兼容 OpenAI 的 URL
+                openai_api_key=os.getenv("DASHSCOPE_API_KEY"),
+                openai_api_base="https://dashscope.aliyuncs.com/compatible-mode/v1"  # 千问兼容 OpenAI 的 URL
             )
         else:  # Use OpenAI model
             model = ChatOpenAI(
@@ -458,7 +458,7 @@ async def initialize_session(mcp_config=None):
 
 # --- Sidebar: System Settings Section ---
 with st.sidebar:
-    st.subheader("⚙️ System Settings")
+    st.subheader("⚙️ 系统设置")
 
     # Model selection feature
     # Create list of available models
@@ -488,7 +488,7 @@ with st.sidebar:
     # Display message if no models are available
     if not available_models:
         st.warning(
-            "⚠️ API keys are not configured. Please add ANTHROPIC_API_KEY or OPENAI_API_KEY to your .env file."
+            "⚠️ 未配置 API 密钥。请在 .env 文件中添加 ANTHROPIC_API_KEY 或 OPENAI_API_KEY。"
         )
         # Add Claude model as default (to show UI even without keys)
         available_models = ["claude-3-7-sonnet-latest"]
@@ -496,14 +496,14 @@ with st.sidebar:
     # Model selection dropdown
     previous_model = st.session_state.selected_model
     st.session_state.selected_model = st.selectbox(
-        "🤖 Select model to use",
+        "🤖 选择要使用的模型",
         options=available_models,
         index=(
             available_models.index(st.session_state.selected_model)
             if st.session_state.selected_model in available_models
             else 0
         ),
-        help="Anthropic models require ANTHROPIC_API_KEY and OpenAI models require OPENAI_API_KEY to be set as environment variables.",
+        help="Anthropic 模型需要设置 ANTHROPIC_API_KEY，OpenAI 模型需要设置 OPENAI_API_KEY 环境变量。",
     )
 
     # Notify when model is changed and session needs to be reinitialized
@@ -512,39 +512,39 @@ with st.sidebar:
         and st.session_state.session_initialized
     ):
         st.warning(
-            "⚠️ Model has been changed. Click 'Apply Settings' button to apply changes."
+            "⚠️ 模型已更改。点击'应用设置'按钮以应用更改。"
         )
 
     # Add timeout setting slider
     st.session_state.timeout_seconds = st.slider(
-        "⏱️ Response generation time limit (seconds)",
+        "⏱️ 响应生成时间限制（秒）",
         min_value=60,
         max_value=300,
         value=st.session_state.timeout_seconds,
         step=10,
-        help="Set the maximum time for the agent to generate a response. Complex tasks may require more time.",
+        help="设置代理生成响应的最大时间。复杂任务可能需要更多时间。",
     )
 
     st.session_state.recursion_limit = st.slider(
-        "⏱️ Recursion call limit (count)",
+        "⏱️ 递归调用限制（次数）",
         min_value=10,
         max_value=200,
         value=st.session_state.recursion_limit,
         step=10,
-        help="Set the recursion call limit. Setting too high a value may cause memory issues.",
+        help="设置递归调用限制。设置过高的值可能导致内存问题。",
     )
 
     st.divider()  # Add divider
 
     # Tool settings section
-    st.subheader("🔧 Tool Settings")
+    st.subheader("🔧 工具设置")
 
     # Manage expander state in session state
     if "mcp_tools_expander" not in st.session_state:
         st.session_state.mcp_tools_expander = False
 
     # MCP tool addition interface
-    with st.expander("🧰 Add MCP Tools", expanded=st.session_state.mcp_tools_expander):
+    with st.expander("🧰 添加 MCP 工具", expanded=st.session_state.mcp_tools_expander):
         # Load settings from config.json file
         loaded_config = load_config_from_json()
         default_config_text = json.dumps(loaded_config, indent=2, ensure_ascii=False)
@@ -557,12 +557,12 @@ with st.sidebar:
                 st.error(f"Failed to set initial pending config: {e}")
 
         # UI for adding individual tools
-        st.subheader("Add Tool(JSON format)")
+        st.subheader("添加工具（JSON 格式）")
         st.markdown(
             """
-        Please insert **ONE tool** in JSON format.
+        请插入**一个工具**的 JSON 格式配置。
 
-        ⚠️ **Important**: JSON must be wrapped in curly braces (`{}`).
+        ⚠️ **重要**：JSON 必须用大括号（`{}`）包围。
         """
         )
 
@@ -585,14 +585,14 @@ with st.sidebar:
         default_text = json.dumps(example_json, indent=2, ensure_ascii=False)
 
         new_tool_json = st.text_area(
-            "Tool JSON",
+            "工具 JSON",
             default_text,
             height=250,
         )
 
         # Add button
         if st.button(
-            "Add Tool",
+            "添加工具",
             type="primary",
             key="add_tool_button",
             use_container_width=True,
@@ -602,8 +602,8 @@ with st.sidebar:
                 if not new_tool_json.strip().startswith(
                     "{"
                 ) or not new_tool_json.strip().endswith("}"):
-                    st.error("JSON must start and end with curly braces ({}).")
-                    st.markdown('Correct format: `{ "tool_name": { ... } }`')
+                    st.error("JSON 必须以大括号（{}）开始和结束。")
+                    st.markdown('正确格式：`{ "工具名称": { ... } }`')
                 else:
                     # Parse JSON
                     parsed_tool = json.loads(new_tool_json)
@@ -613,12 +613,12 @@ with st.sidebar:
                         # Move contents of mcpServers to top level
                         parsed_tool = parsed_tool["mcpServers"]
                         st.info(
-                            "'mcpServers' format detected. Converting automatically."
+                            "检测到 'mcpServers' 格式。正在自动转换。"
                         )
 
                     # Check number of tools entered
                     if len(parsed_tool) == 0:
-                        st.error("Please enter at least one tool.")
+                        st.error("请至少输入一个工具。")
                     else:
                         # Process all tools
                         success_tools = []
@@ -628,7 +628,7 @@ with st.sidebar:
                                 # Set transport to "sse" if URL exists
                                 tool_config["transport"] = "sse"
                                 st.info(
-                                    f"URL detected in '{tool_name}' tool, setting transport to 'sse'."
+                                    f"在 '{tool_name}' 工具中检测到 URL，将传输方式设置为 'sse'。"
                                 )
                             elif "transport" not in tool_config:
                                 # Set default "stdio" if URL doesn't exist and transport isn't specified
@@ -640,17 +640,17 @@ with st.sidebar:
                                 and "url" not in tool_config
                             ):
                                 st.error(
-                                    f"'{tool_name}' tool configuration requires either 'command' or 'url' field."
+                                    f"'{tool_name}' 工具配置需要 'command' 或 'url' 字段。"
                                 )
                             elif "command" in tool_config and "args" not in tool_config:
                                 st.error(
-                                    f"'{tool_name}' tool configuration requires 'args' field."
+                                    f"'{tool_name}' 工具配置需要 'args' 字段。"
                                 )
                             elif "command" in tool_config and not isinstance(
                                 tool_config["args"], list
                             ):
                                 st.error(
-                                    f"'args' field in '{tool_name}' tool must be an array ([]) format."
+                                    f"'{tool_name}' 工具中的 'args' 字段必须是数组（[]）格式。"
                                 )
                             else:
                                 # Add tool to pending_mcp_config
@@ -663,62 +663,62 @@ with st.sidebar:
                         if success_tools:
                             if len(success_tools) == 1:
                                 st.success(
-                                    f"{success_tools[0]} tool has been added. Click 'Apply Settings' button to apply."
+                                    f"{success_tools[0]} 工具已添加。点击'应用设置'按钮以应用。"
                                 )
                             else:
                                 tool_names = ", ".join(success_tools)
                                 st.success(
-                                    f"Total {len(success_tools)} tools ({tool_names}) have been added. Click 'Apply Settings' button to apply."
+                                    f"总共 {len(success_tools)} 个工具（{tool_names}）已添加。点击'应用设置'按钮以应用。"
                                 )
                             # Collapse expander after adding
                             st.session_state.mcp_tools_expander = False
                             st.rerun()
             except json.JSONDecodeError as e:
-                st.error(f"JSON parsing error: {e}")
+                st.error(f"JSON 解析错误：{e}")
                 st.markdown(
                     f"""
-                **How to fix**:
-                1. Check that your JSON format is correct.
-                2. All keys must be wrapped in double quotes (").
-                3. String values must also be wrapped in double quotes (").
-                4. When using double quotes within a string, they must be escaped (\\").
+                **修复方法**：
+                1. 检查 JSON 格式是否正确。
+                2. 所有键必须用双引号（"）包围。
+                3. 字符串值也必须用双引号（"）包围。
+                4. 在字符串中使用双引号时，必须转义（\\\"）。
                 """
                 )
             except Exception as e:
-                st.error(f"Error occurred: {e}")
+                st.error(f"发生错误：{e}")
 
     # Display registered tools list and add delete buttons
-    with st.expander("📋 Registered Tools List", expanded=True):
+    with st.expander("📋 已注册工具列表", expanded=True):
         try:
             pending_config = st.session_state.pending_mcp_config
         except Exception as e:
-            st.error("Not a valid MCP tool configuration.")
+            st.error("不是有效的 MCP 工具配置。")
         else:
             # Iterate through keys (tool names) in pending config
             for tool_name in list(pending_config.keys()):
                 col1, col2 = st.columns([8, 2])
                 col1.markdown(f"- **{tool_name}**")
-                if col2.button("Delete", key=f"delete_{tool_name}"):
+                if col2.button("删除", key=f"delete_{tool_name}"):
                     # Delete tool from pending config (not applied immediately)
                     del st.session_state.pending_mcp_config[tool_name]
                     st.success(
-                        f"{tool_name} tool has been deleted. Click 'Apply Settings' button to apply."
+                        f"{tool_name} 工具已删除。点击'应用设置'按钮以应用。"
                     )
 
     st.divider()  # Add divider
 
 # --- Sidebar: System Information and Action Buttons Section ---
 with st.sidebar:
-    st.subheader("📊 System Information")
+    st.subheader("📊 系统信息")
     st.write(
-        f"🛠️ MCP Tools Count: {st.session_state.get('tool_count', 'Initializing...')}"
+        f"🛠️ MCP 工具数量：{st.session_state.get('tool_count', '初始化中...')}"
     )
     selected_model_name = st.session_state.selected_model
-    st.write(f"🧠 Current Model: {selected_model_name}")
+    st.write(f"🧠 当前模型：{selected_model_name}")
 
     # Move Apply Settings button here
     if st.button(
-        "Apply Settings",
+        "应用设置",
         key="apply_button",
         type="primary",
         use_container_width=True,
@@ -726,7 +726,7 @@ with st.sidebar:
         # Display applying message
         apply_status = st.empty()
         with apply_status.container():
-            st.warning("🔄 Applying changes. Please wait...")
+            st.warning("🔄 正在应用更改。请稍候...")
             progress_bar = st.progress(0)
 
             # Save settings
@@ -737,7 +737,7 @@ with st.sidebar:
             # Save settings to config.json file
             save_result = save_config_to_json(st.session_state.pending_mcp_config)
             if not save_result:
-                st.error("❌ Failed to save settings file.")
+                st.error("❌ 保存设置文件失败。")
 
             progress_bar.progress(15)
 
@@ -757,12 +757,12 @@ with st.sidebar:
             progress_bar.progress(100)
 
             if success:
-                st.success("✅ New settings have been applied.")
+                st.success("✅ 新设置已应用。")
                 # Collapse tool addition expander
                 if "mcp_tools_expander" in st.session_state:
                     st.session_state.mcp_tools_expander = False
             else:
-                st.error("❌ Failed to apply settings.")
+                st.error("❌ 应用设置失败。")
 
         # Refresh page
         st.rerun()
@@ -770,10 +770,10 @@ with st.sidebar:
     st.divider()  # Add divider
 
     # Action buttons section
-    st.subheader("🔄 Actions")
+    st.subheader("🔄 操作")
 
     # Reset conversation button
-    if st.button("Reset Conversation", use_container_width=True, type="primary"):
+    if st.button("重置对话", use_container_width=True, type="primary"):
         # Reset thread_id
         st.session_state.thread_id = random_uuid()
 
@@ -781,7 +781,7 @@ with st.sidebar:
         st.session_state.history = []
 
         # Notification message
-        st.success("✅ Conversation has been reset.")
+        st.success("✅ 对话已重置。")
 
         # Refresh page
         st.rerun()
@@ -789,7 +789,7 @@ with st.sidebar:
 # --- Initialize default session (if not initialized) ---
 if not st.session_state.session_initialized:
     st.info(
-        "MCP server and agent are not initialized. Please click the 'Apply Settings' button in the left sidebar to initialize."
+        "MCP 服务器和代理尚未初始化。请点击左侧边栏中的'应用设置'按钮进行初始化。"
     )
 
 
@@ -797,7 +797,7 @@ if not st.session_state.session_initialized:
 print_message()
 
 # --- User input and processing ---
-user_query = st.chat_input("💬 Enter your question")
+user_query = st.chat_input("💬 输入您的问题")
 if user_query:
     if st.session_state.session_initialized:
         st.chat_message("user", avatar="🧑‍💻").markdown(user_query)
@@ -828,5 +828,5 @@ if user_query:
             st.rerun()
     else:
         st.warning(
-            "⚠️ MCP server and agent are not initialized. Please click the 'Apply Settings' button in the left sidebar to initialize."
+            "⚠️ MCP 服务器和代理尚未初始化。请点击左侧边栏中的'应用设置'按钮进行初始化。"
         )
