@@ -540,9 +540,11 @@ class MCPAgentApp:
                     # 显示错误消息
                     self.root.after(0, lambda: self.append_to_chat("系统", resp["error"], "error"))
                 else:
-                    # 成功处理，final_text 已经通过流式回调显示了
-                    # 如果有工具调用信息，也已经通过流式回调显示了
-                    pass
+                    # 只在最终显示完整内容
+                    if final_text:
+                        self.root.after(0, lambda: self.append_to_chat("助手", final_text, "assistant"))
+                    if final_tool:
+                        self.root.after(0, lambda: self.append_to_chat("工具", final_tool, "tool"))
                 
             except asyncio.TimeoutError:
                 error_msg = f"❌ 查询超时（超过 {self.timeout_seconds.get()} 秒）"
@@ -559,9 +561,6 @@ class MCPAgentApp:
         """异步处理用户查询，与 app.py 的 process_query 函数逻辑一致"""
         try:
             if self.agent:
-                # 记录当前助手消息开始位置，用于流式更新
-                self._current_assistant_start = self.chat_history.index(tk.END)
-                
                 # 获取流式回调
                 streaming_callback, accumulated_text_obj, accumulated_tool_obj = self.get_streaming_callback()
                 
@@ -619,8 +618,6 @@ class MCPAgentApp:
                     # 处理文本类型
                     if message_chunk["type"] == "text":
                         accumulated_text.append(message_chunk["text"])
-                        # 在 Tkinter 中实时更新显示
-                        self.root.after(0, lambda: self.update_streaming_text("".join(accumulated_text)))
                     # 处理工具使用类型
                     elif message_chunk["type"] == "tool_use":
                         if "partial_json" in message_chunk:
@@ -632,8 +629,6 @@ class MCPAgentApp:
                                 accumulated_tool.append(
                                     "\n```json\n" + str(tool_call_chunk) + "\n```\n"
                                 )
-                        # 在 Tkinter 中更新工具信息显示
-                        self.root.after(0, lambda: self.update_tool_info("".join(accumulated_tool)))
                 # 处理如果 tool_calls 属性存在（主要出现在 OpenAI 模型中）
                 elif (
                     hasattr(message_content, "tool_calls")
@@ -642,67 +637,17 @@ class MCPAgentApp:
                 ):
                     tool_call_info = message_content.tool_calls[0]
                     accumulated_tool.append("\n```json\n" + str(tool_call_info) + "\n```\n")
-                    self.root.after(0, lambda: self.update_tool_info("".join(accumulated_tool)))
                 # 处理如果内容是简单字符串
                 elif isinstance(content, str):
                     accumulated_text.append(content)
-                    self.root.after(0, lambda: self.update_streaming_text("".join(accumulated_text)))
-                # 处理如果存在无效的工具调用信息
-                elif (
-                    hasattr(message_content, "invalid_tool_calls")
-                    and message_content.invalid_tool_calls
-                ):
-                    tool_call_info = message_content.invalid_tool_calls[0]
-                    accumulated_tool.append("\n```json\n" + str(tool_call_info) + "\n```\n")
-                    self.root.after(0, lambda: self.update_tool_info("".join(accumulated_tool)))
-                # 处理如果 tool_call_chunks 属性存在
-                elif (
-                    hasattr(message_content, "tool_call_chunks")
-                    and message_content.tool_call_chunks
-                ):
-                    tool_call_chunk = message_content.tool_call_chunks[0]
-                    accumulated_tool.append(
-                        "\n```json\n" + str(tool_call_chunk) + "\n```\n"
-                    )
-                    self.root.after(0, lambda: self.update_tool_info("".join(accumulated_tool)))
-                # 处理如果 tool_calls 存在于 additional_kwargs 中（支持各种模型兼容性）
-                elif (
-                    hasattr(message_content, "additional_kwargs")
-                    and "tool_calls" in message_content.additional_kwargs
-                ):
-                    tool_call_info = message_content.additional_kwargs["tool_calls"][0]
-                    accumulated_tool.append("\n```json\n" + str(tool_call_info) + "\n```\n")
-                    self.root.after(0, lambda: self.update_tool_info("".join(accumulated_tool)))
             # 处理如果是工具消息（工具响应）
             elif hasattr(message_content, '__class__') and 'ToolMessage' in str(message_content.__class__):
                 accumulated_tool.append(
                     "\n```json\n" + str(message_content.content) + "\n```\n"
                 )
-                self.root.after(0, lambda: self.update_tool_info("".join(accumulated_tool)))
             return None
         
         return callback_func, accumulated_text, accumulated_tool
-    
-    def update_streaming_text(self, text):
-        """更新流式文本显示"""
-        # 清除当前助手消息并重新显示
-        if hasattr(self, '_current_assistant_start'):
-            self.chat_history.delete(self._current_assistant_start, tk.END)
-        
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        self.chat_history.insert(tk.END, f"[{timestamp}] 助手: {text}\n")
-        self.chat_history.tag_add("msg_assistant", "end-2l", "end-1l")
-        self.chat_history.tag_config("msg_assistant", foreground="blue")
-        self.chat_history.see(tk.END)
-    
-    def update_tool_info(self, tool_info):
-        """更新工具调用信息显示"""
-        if tool_info.strip():
-            timestamp = datetime.now().strftime("%H:%M:%S")
-            self.chat_history.insert(tk.END, f"[{timestamp}] 工具: {tool_info}\n")
-            self.chat_history.tag_add("msg_tool", "end-2l", "end-1l")
-            self.chat_history.tag_config("msg_tool", foreground="green")
-            self.chat_history.see(tk.END)
     
     def append_to_chat(self, sender: str, message: str, msg_type: str = "normal"):
         """向聊天窗口添加消息"""
