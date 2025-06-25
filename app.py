@@ -87,41 +87,8 @@ def save_config_to_json(config):
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
-# Check if login is required
-use_login = os.environ.get("USE_LOGIN", "false").lower() == "true"
-
-# Change page settings based on login status
-if use_login and not st.session_state.authenticated:
-    # Login page uses default (narrow) layout
-    st.set_page_config(page_title="Agent with MCP Tools", page_icon="🧠")
-else:
-    # Main app uses wide layout
-    st.set_page_config(page_title="Agent with MCP Tools", page_icon="🧠", layout="wide")
-
-# Display login screen if login feature is enabled and not yet authenticated
-if use_login and not st.session_state.authenticated:
-    st.title("🔐 Login")
-    st.markdown("Login is required to use the system.")
-
-    # Place login form in the center of the screen with narrow width
-    with st.form("login_form"):
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
-        submit_button = st.form_submit_button("Login")
-
-        if submit_button:
-            expected_username = os.environ.get("USER_ID")
-            expected_password = os.environ.get("USER_PASSWORD")
-
-            if username == expected_username and password == expected_password:
-                st.session_state.authenticated = True
-                st.success("✅ Login successful! Please wait...")
-                st.rerun()
-            else:
-                st.error("❌ Username or password is incorrect.")
-
-    # Don't display the main app on the login screen
-    st.stop()
+# Main app uses wide layout
+st.set_page_config(page_title="Agent with MCP Tools", page_icon="🧠", layout="wide")
 
 # Add author information at the top of the sidebar (placed before other sidebar elements)
 st.sidebar.markdown("### ✍️ Made by [TeddyNote](https://youtube.com/c/teddynote) 🚀")
@@ -826,14 +793,6 @@ with st.sidebar:
 
         # Refresh page
         st.rerun()
-
-    # Show logout button only if login feature is enabled
-    if use_login and st.session_state.authenticated:
-        st.divider()  # Add divider
-        if st.button("Logout", use_container_width=True, type="secondary"):
-            st.session_state.authenticated = False
-            st.success("✅ You have been logged out.")
-            st.rerun()
 
 # --- Initialize default session (if not initialized) ---
 if not st.session_state.session_initialized:
