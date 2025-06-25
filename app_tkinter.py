@@ -647,51 +647,48 @@ class MCPAgentApp:
         threading.Thread(target=process_async, daemon=True).start()
     
     def _send_message_normal(self, message: str):
-        """普通处理消息"""
-        # 显示思考占位符
-        self.append_to_chat("助手", "🤔 正在思考...", "assistant")
-        
+        """普通处理消息（不使用流式）"""
         # 处理查询
         def process_async():
             try:
+                logger.info(f"开始处理普通模式消息: '{message}'")
                 # 使用普通查询处理方法
                 future = asyncio.run_coroutine_threadsafe(
                     self.process_query_normal_async(message), self.loop
                 )
+                
+                # 获取处理结果
                 resp, final_text, final_tool = future.result(timeout=self.timeout_seconds.get())
+                logger.info(f"查询处理完成: 文本长度={len(final_text) if final_text else 0}, 工具信息长度={len(final_tool) if final_tool else 0}")
                 
-                logger.info(f"普通模式响应: resp类型={type(resp)}, final_text='{final_text[:100] if final_text else None}...', final_tool='{final_tool[:50] if final_tool else None}...'")
-                
+                # 检查是否有错误
                 if isinstance(resp, dict) and "error" in resp:
-                    # 替换思考占位符为错误消息
-                    logger.info("准备替换为错误消息")
-                    self.root.after(0, lambda: self.replace_last_assistant_message(resp["error"]))
+                    # 显示错误消息
+                    self.root.after(0, lambda: self.append_to_chat("助手", resp["error"], "error"))
                 else:
-                    # 替换思考占位符为最终内容
+                    # 显示最终内容
                     if final_text:
-                        logger.info(f"准备替换助手消息，文本长度: {len(final_text)}")
-                        self.root.after(0, lambda: self.replace_last_assistant_message(final_text))
+                        self.root.after(0, lambda: self.append_to_chat("助手", final_text, "assistant"))
                     else:
-                        # 如果没有最终文本，尝试从响应中提取
+                        # 如果没有最终文本，显示回退消息
                         fallback_text = "收到回复但无法解析内容"
                         if isinstance(resp, dict) and "messages" in resp:
                             fallback_text = f"响应包含 {len(resp['messages'])} 个消息"
-                        logger.info(f"使用回退文本: {fallback_text}")
-                        self.root.after(0, lambda: self.replace_last_assistant_message(fallback_text))
+                        self.root.after(0, lambda: self.append_to_chat("助手", fallback_text, "assistant"))
                 
+                # 显示工具信息（如果有）
                 if final_tool:
-                    logger.info(f"准备添加工具消息，长度: {len(final_tool)}")
                     self.root.after(0, lambda: self.append_to_chat("工具", final_tool, "tool"))
             
             except asyncio.TimeoutError:
                 error_msg = f"❌ 查询超时（超过 {self.timeout_seconds.get()} 秒）"
                 logger.error(error_msg)
-                self.root.after(0, lambda: self.replace_last_assistant_message(error_msg))
+                self.root.after(0, lambda: self.append_to_chat("助手", error_msg, "error"))
             except Exception as e:
                 error_msg = f"❌ 处理异常: {str(e)}"
                 logger.error(f"{error_msg}\n{traceback.format_exc()}")
-                self.root.after(0, lambda: self.replace_last_assistant_message(error_msg))
-        
+                self.root.after(0, lambda: self.append_to_chat("助手", error_msg, "error"))
+    
         # 在后台线程中运行处理
         threading.Thread(target=process_async, daemon=True).start()
     
@@ -795,18 +792,22 @@ class MCPAgentApp:
                     final_tool = ""
                     
                     if "messages" in response:
-                        logger.info(f"找到 {len(response['messages'])} 个消息")
-                        for i, msg in enumerate(response["messages"]):
-                            logger.info(f"消息 {i}: 类型={type(msg)}, 有content属性={hasattr(msg, 'content')}")
+                        # 只处理最后一条消息，避免累积
+                        if len(response["messages"]) > 0:
+                            # 获取最后一条消息
+                            msg = response["messages"][-1]
+                            logger.info(f"处理最后一条消息: 类型={type(msg)}")
+                            
                             if hasattr(msg, 'content'):
                                 content = msg.content
-                                logger.info(f"消息 {i} 内容类型: {type(content)}")
+                                logger.info(f"消息内容类型: {type(content)}")
+                                
                                 if isinstance(content, str):
-                                    final_text += content
-                                    logger.info(f"添加字符串内容: {content[:50]}...")
+                                    final_text = content
+                                    logger.info(f"使用字符串内容: {content[:50] if len(content) > 50 else content}")
                                 elif isinstance(content, list):
                                     logger.info(f"处理列表内容，长度: {len(content)}")
-                                    for j, content_part in enumerate(content):
+                                    for content_part in content:
                                         if isinstance(content_part, dict):
                                             if 'text' in content_part:
                                                 final_text += content_part['text']
@@ -814,12 +815,16 @@ class MCPAgentApp:
                                             elif 'content' in content_part:
                                                 final_text += str(content_part['content'])
                                                 logger.info(f"添加content字段: {str(content_part['content'])[:50]}...")
-                        
-                        # 处理工具调用信息
-                        if hasattr(msg, 'additional_kwargs') and 'tool_calls' in msg.additional_kwargs:
-                            for tool_call in msg.additional_kwargs['tool_calls']:
-                                final_tool += f"🔧 工具调用: {tool_call.get('function', {}).get('name', 'Unknown')}\n"
-                                final_tool += f"参数: {tool_call.get('function', {}).get('arguments', '')}\n\n"
+                                                
+                            # 处理工具调用信息
+                            if hasattr(msg, 'additional_kwargs') and 'tool_calls' in msg.additional_kwargs:
+                                for tool_call in msg.additional_kwargs['tool_calls']:
+                                    final_tool += f"🔧 工具调用: {tool_call.get('function', {}).get('name', 'Unknown')}\n"
+                                    final_tool += f"参数: {tool_call.get('function', {}).get('arguments', '')}\n\n"
+                                    
+                            logger.info(f"最终消息文本: '{final_text[:100]}...'")
+                        else:
+                            logger.warning("响应中的messages列表为空")
                     else:
                         logger.warning("响应中没有找到'messages'键")
                     
