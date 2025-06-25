@@ -1,4 +1,7 @@
 {
     "python.pythonPath": "I:\\pdfai_serv\\mcp\\Python310-agent\\Python310-agent\\python.exe",
-    "python.defaultInterpreterPath": "I:\\pdfai_serv\\mcp\\Python310-agent\\Python310-agent\\python.exe"
+    "python.defaultInterpreterPath": "I:\\pdfai_serv\\mcp\\Python310-agent\\Python310-agent\\python.exe",
+    "python.terminal.activateEnvironment": true,
+    "python.terminal.activateEnvInCurrentTerminal": true,
+    "terminal.integrated.cwd": "I:\\pdfai_serv\\mcp\\langgraph-mcp-agents"
 }
