@@ -129,5 +129,9 @@ def get_process_memory(name: str) -> str:
     return f"未找到名为 {name} 的进程"
 
 # I:\pdfai_serv\mcp\Python310-agent\Python310-agent\python.exe process_manager_fastmcp.py
-if __name__ == "__main__":
+def main():
     mcp.run()  # 默认使用 stdio transport
+
+if __name__ == "__main__":
+    main()
+    

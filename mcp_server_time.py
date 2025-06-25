@@ -42,9 +42,13 @@ async def get_current_time(timezone: Optional[str] = "Asia/Seoul") -> str:
         return f"Error getting time: {str(e)}"
 
 
-if __name__ == "__main__":
+def main():
     # Start the MCP server with stdio transport
     # stdio transport allows the server to communicate with clients
     # through standard input/output streams, making it suitable for
     # local development and testing
     mcp.run(transport="stdio")
+
+if __name__ == "__main__":
+    main()
+    

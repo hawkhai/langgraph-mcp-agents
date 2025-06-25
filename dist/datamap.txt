@@ -1,5 +1,8 @@
-"gitbigfilex.json" 1368bb19c2caa69d719b2b1bbf49f0ab 539113
+"config.json" 3aed1f47de828fc3465486f813310d6d 310
+"gitbigfilex.json" 50e8bac749dc31b841288f33ba09c44e 539948
+"gitbigfilex_dense.zip" 1706a36c0ca0b2aa5ee31dbfb969ba2e 84293380
 "GraphAgentDesktop.exe" 6f148cd6322eeee05db4d69220d1a0d0 609280
+"GraphAgentDesktop.zip" 11dbc40efacb5507eb02e2240f1fa1bb 28129441
 "GraphAgentDesktop\_internal\_asyncio.pyd" 33d0b6de555ddbbbd5ca229bfa91c329 65304
 "GraphAgentDesktop\_internal\_bz2.pyd" 86d1b2a9070cd7d52124126a357ff067 83736
 "GraphAgentDesktop\_internal\_cffi_backend.cp310-win_amd64.pyd" 2baaa98b744915339ae6c016b17c3763 178176
@@ -988,7 +991,7 @@
 "GraphAgentDesktop\_internal\attrs-25.3.0.dist-info\METADATA" 70c3743909329f059ee883254e8bf64b 10993
 "GraphAgentDesktop\_internal\attrs-25.3.0.dist-info\RECORD" 8ff013ce8e9cb60aa683aa77d4f7c6c3 3556
 "GraphAgentDesktop\_internal\attrs-25.3.0.dist-info\WHEEL" e2fcb0ad9ea59332c808928b4b439e7a 87
-"GraphAgentDesktop\_internal\base_library.zip" a40dd3e8da20423873726ec64783c1ce 880569
+"GraphAgentDesktop\_internal\base_library.zip" fdf59e2b5095f84741f32679de624de7 880569
 "GraphAgentDesktop\_internal\certifi\cacert.pem" efc4b0783f2c84a6244631bc2aa73312 281225
 "GraphAgentDesktop\_internal\certifi\py.typed" d41d8cd98f00b204e9800998ecf8427e 0
 "GraphAgentDesktop\_internal\charset_normalizer\md.cp310-win_amd64.pyd" 8156273c4ed02983098d49bdc409952a 10752
@@ -1020,6 +1023,13 @@
 "GraphAgentDesktop\_internal\faiss_cpu.libs\libomp140.x86_64-b75298b29ac452824dec2c89e8884a73.dll" 391afd26644dbb7cafc6a9d00ee546e0 630856
 "GraphAgentDesktop\_internal\faiss_cpu.libs\msvcp140-3ae83edc53b0c1190db4fe390f76a503.dll" cfdf6eaf5328fecbdec268b7f9e21f3a 575592
 "GraphAgentDesktop\_internal\faiss_cpu.libs\openblas-e5d6a39dd93158b9c6576c0d5034b958.dll" e29a7760e4e601780bfce3aa7843c250 28463104
+"GraphAgentDesktop\_internal\fastmcp-2.8.1.dist-info\entry_points.txt" b13450e9993e8501b657f794fc02d40a 44
+"GraphAgentDesktop\_internal\fastmcp-2.8.1.dist-info\INSTALLER" 365c9bfeb7d89244f2ce01c1de44cb85 4
+"GraphAgentDesktop\_internal\fastmcp-2.8.1.dist-info\licenses\LICENSE" 2b42edef8fa55315f34f2370b4715ca9 11356
+"GraphAgentDesktop\_internal\fastmcp-2.8.1.dist-info\METADATA" a4886b81796f4273372efc93f4d71358 17773
+"GraphAgentDesktop\_internal\fastmcp-2.8.1.dist-info\RECORD" 19c93e10bf0b1b456aa96a8e1227251f 9701
+"GraphAgentDesktop\_internal\fastmcp-2.8.1.dist-info\REQUESTED" d41d8cd98f00b204e9800998ecf8427e 0
+"GraphAgentDesktop\_internal\fastmcp-2.8.1.dist-info\WHEEL" e2fcb0ad9ea59332c808928b4b439e7a 87
 "GraphAgentDesktop\_internal\frozenlist\_frozenlist.cp310-win_amd64.pyd" 09c18bffcaf427473b05d20e34aaea3e 68096
 "GraphAgentDesktop\_internal\google\_upb\_message.pyd" f0179a2c8c7755934ff035d7fc3a51d2 713235
 "GraphAgentDesktop\_internal\google_api_core-2.25.1.dist-info\INSTALLER" 365c9bfeb7d89244f2ce01c1de44cb85 4
@@ -6032,8 +6042,10 @@
 "GraphAgentDesktop\_internal\win32\win32event.pyd" ad05738418a9d12982a5704e4a7836d0 28672
 "GraphAgentDesktop\_internal\win32\win32evtlog.pyd" e0c5b018dc1e43a219659458aeac2948 73216
 "GraphAgentDesktop\_internal\win32\win32file.pyd" d1717d224f7c46636336f9d3857f96f0 143360
+"GraphAgentDesktop\_internal\win32\win32gui.pyd" 45602a1f8528c1961523c5c5d6f4a9bf 219136
 "GraphAgentDesktop\_internal\win32\win32pdh.pyd" 7035d98c0163ed33e51cd4d299a4e0a7 34816
 "GraphAgentDesktop\_internal\win32\win32pipe.pyd" fde5f84f99b3df724b5f1a52d6bd8a96 28160
+"GraphAgentDesktop\_internal\win32\win32process.pyd" 33e078e8e86f066e712fd7a06b6a668d 53248
 "GraphAgentDesktop\_internal\win32\win32security.pyd" c6ecd09e0493054fa0651e3f61e95d76 136192
 "GraphAgentDesktop\_internal\win32\win32trace.pyd" 5b5e7c0a05baec185c48c4be540d9ed6 23552
 "GraphAgentDesktop\_internal\win32com\shell\shell.pyd" 6f6090181ae2f3760e8d431ff08d3714 534528
@@ -6044,7 +6056,8 @@
 "GraphAgentDesktop\_internal\zmq\backend\cython\_zmq.cp310-win_amd64.pyd" fcee09060e1118184074657f488f2dcd 1024512
 "GraphAgentDesktop\_internal\zstandard\_cffi.cp310-win_amd64.pyd" 008913e1eabd08fe254e0c9f74bafb64 650752
 "GraphAgentDesktop\_internal\zstandard\backend_c.cp310-win_amd64.pyd" ee146c36c6f83a972594c2621e34212d 519680
-"GraphAgentDesktop\GraphAgentDesktop.exe" 3d3816a9b432cec3deb21fd99d8e2254 51101629
-"launcher.ini" 31731da20735ae725456984e40262c84 101
-"upgrade.bat" c933d2f1645ec0a289c31e5853067af0 690
-"upgrade_launcher.bat" a4cefddf022cf196211ccc0ad291643a 707
+"GraphAgentDesktop\GraphAgentDesktop.exe" 19ba0f9c392537f4fc6c3cb0bb4a2eb3 51257286
+"launcher.bat" 763e9ef754544216f609588ca5ae052a 99
+"launcher.ini" c936a8d986c6e85b74adde3def646202 75
+"upgrade.bat" 6a4adf5aedbd02a23199dbc997361222 379
+"upgrade_launcher.bat" 957fa63095951acfd5be12d933a43c10 41

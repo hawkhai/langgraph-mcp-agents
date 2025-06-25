@@ -1,15 +1,15 @@
 {
   "get_current_time": {
-    "command": "python",
+    "command": "GraphAgentDesktop.exe",
     "args": [
-      "./mcp_server_time.py"
+      "mcp_time"
     ],
     "transport": "stdio"
   },
   "local-process-manager": {
-    "command": "python",
+    "command": "GraphAgentDesktop.exe",
     "args": [
-      "./process_manager_fastmcp.py"
+      "mcp_proc"
     ],
     "disabled": false,
     "transport": "stdio"
