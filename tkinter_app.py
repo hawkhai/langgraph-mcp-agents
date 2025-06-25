@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 MCP Agent Tkinter 桌面应用
 基于 Streamlit 版本重新实现的桌面版 MCP 工具智能代理
@@ -18,13 +19,24 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 import uuid
 
+# 设置编码
+if sys.platform.startswith('win'):
+    import locale
+    locale.setlocale(locale.LC_ALL, 'zh_CN.UTF-8')
+
 # 导入现有模块
-from utils import astream_graph, ainvoke_graph
-from langchain_mcp_windows_proc import MultiServerMCPClient
-from langchain.agents import create_react_agent, AgentExecutor
-from langchain.prompts import PromptTemplate
+from utils import astream_graph, ainvoke_graph, random_uuid
+from langchain_mcp_adapters.client import MultiServerMCPClient
+from langgraph.prebuilt import create_react_agent
 from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
+from langgraph.checkpoint.memory import MemorySaver
+from langchain_core.runnables import RunnableConfig
+from langchain_core.messages import HumanMessage
+from dotenv import load_dotenv
+
+# 加载环境变量
+load_dotenv()
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -271,26 +283,26 @@ class MCPAgentApp:
                 await self.mcp_client.close()
             
             # 创建 MCP 客户端
-            self.mcp_client = MultiServerMCPClient()
+            self.mcp_client = MultiServerMCPClient(self.mcp_config)
             
-            # 配置服务器
-            for tool_name, config in self.mcp_config.items():
-                self.mcp_client.add_server(tool_name, config)
-            
-            # 连接所有服务器
-            await self.mcp_client.connect_all()
+            # 获取工具
+            tools = await self.mcp_client.get_tools()
             
             # 创建 Agent
             model_name = self.selected_model.get()
             
             # 根据模型创建不同的 LLM
-            if "claude" in model_name:
+            if model_name in [
+                "claude-3-7-sonnet-latest",
+                "claude-3-5-sonnet-latest", 
+                "claude-3-5-haiku-latest",
+            ]:
                 llm = ChatAnthropic(
                     model=model_name,
                     temperature=0.1,
                     max_tokens=OUTPUT_TOKEN_INFO[model_name]["max_tokens"],
                 )
-            elif "qwen" in model_name:
+            elif model_name in ["qwen-plus-latest"]:
                 llm = ChatOpenAI(
                     model=model_name,
                     temperature=0.1,
@@ -305,20 +317,12 @@ class MCPAgentApp:
                     max_tokens=OUTPUT_TOKEN_INFO[model_name]["max_tokens"],
                 )
             
-            # 创建提示模板
-            prompt_template = PromptTemplate.from_template(SYSTEM_PROMPT + "\n\n{input}\n\nAgent scratchpad:\n{agent_scratchpad}")
-            
-            # 获取工具
-            tools = await self.mcp_client.get_tools()
-            
             # 创建 ReAct Agent
-            agent = create_react_agent(llm, tools, prompt_template)
-            self.agent = AgentExecutor(
-                agent=agent,
-                tools=tools,
-                verbose=True,
-                handle_parsing_errors=True,
-                max_iterations=self.recursion_limit.get()
+            self.agent = create_react_agent(
+                llm,
+                tools,
+                checkpointer=MemorySaver(),
+                prompt=SYSTEM_PROMPT,
             )
             
             return True
@@ -371,17 +375,29 @@ class MCPAgentApp:
             if not self.agent:
                 return "❌ Agent 未初始化"
             
-            # 使用 astream_graph 进行流式处理
-            response_text = ""
-            async for chunk in astream_graph(
-                self.agent, 
-                {"input": query, "thread_id": self.thread_id},
-                stream_mode="messages"
-            ):
-                if hasattr(chunk, 'content') and chunk.content:
-                    response_text += str(chunk.content)
+            # 用于收集响应文本
+            accumulated_text = []
             
-            return response_text if response_text else "未收到响应"
+            def text_callback(chunk):
+                """处理文本响应"""
+                if hasattr(chunk, 'content') and chunk.content:
+                    accumulated_text.append(str(chunk.content))
+                    # 在主线程中更新界面
+                    self.root.after(0, lambda: self.append_partial_response(str(chunk.content)))
+            
+            # 使用 astream_graph 进行流式处理
+            response = await astream_graph(
+                self.agent,
+                {"messages": [{"role": "user", "content": query}]},
+                callback=text_callback,
+                config=RunnableConfig(
+                    recursion_limit=self.recursion_limit.get(),
+                    thread_id=self.thread_id,
+                ),
+            )
+            
+            final_text = "".join(accumulated_text)
+            return final_text if final_text else "未收到响应"
             
         except Exception as e:
             logger.error(f"查询处理错误: {e}")
@@ -413,6 +429,12 @@ class MCPAgentApp:
         start_line = float(self.chat_history.index(tk.END)) - 2
         self.chat_history.tag_add(f"msg_{msg_type}", f"{start_line:.1f}", f"{start_line + 1:.1f}")
         self.chat_history.tag_config(f"msg_{msg_type}", foreground=color)
+    
+    def append_partial_response(self, message: str):
+        """向聊天窗口添加部分响应"""
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self.chat_history.insert(tk.END, f"[{timestamp}] 助手: {message}\n")
+        self.chat_history.see(tk.END)
     
     def update_status(self):
         """更新状态信息"""
