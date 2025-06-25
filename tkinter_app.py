@@ -41,6 +41,8 @@ from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.runnables import RunnableConfig
 from langchain_core.messages import HumanMessage
+from langchain_core.messages.ai import AIMessageChunk
+from langchain_core.messages.tool import ToolMessage
 from dotenv import load_dotenv
 
 # 加载环境变量（从 .env 文件获取 API 密钥和设置）
