@@ -1153,19 +1153,26 @@ class MCPAgentApp:
         try:
             logger.info(f"更新工具信息: 信息长度={len(tool_info)}")
             
-            # 查找最后一条工具消息并更新，如果不存在则添加新的
-            found_tool_msg = False
-            for i in range(len(self.chat_messages) - 1, -1, -1):
-                if self.chat_messages[i]["type"] == "tool":
-                    # 只有在有新信息时才更新（避免重复添加相同的信息）
-                    if self.chat_messages[i]["message"] != tool_info:
-                        logger.info(f"更新工具消息 {i}")
-                        self.chat_messages[i]["message"] = tool_info
-                        self.chat_messages[i]["timestamp"] = datetime.now().strftime("%H:%M:%S")
-                    found_tool_msg = True
-                    break
+            # 查找最近的工具消息并更新
+            current_query_id = self.get_current_query_id_from_tool_info(tool_info)
             
-            if not found_tool_msg:
+            # 如果能从工具信息中提取查询ID，则查找匹配的工具消息进行更新
+            found_matching_tool = False
+            if current_query_id:
+                # 仅在当前会话中查找带有相同ID的工具消息
+                for i in range(len(self.chat_messages) - 1, -1, -1):
+                    if self.chat_messages[i]["type"] == "tool":
+                        tool_id = self.get_current_query_id_from_tool_info(self.chat_messages[i]["message"])
+                        if tool_id and tool_id == current_query_id:
+                            # 更新带有相同ID的工具消息
+                            logger.info(f"更新工具消息 ID={current_query_id}")
+                            self.chat_messages[i]["message"] = tool_info
+                            self.chat_messages[i]["timestamp"] = datetime.now().strftime("%H:%M:%S")
+                            found_matching_tool = True
+                            break
+            
+            # 如果没有找到匹配的工具消息，添加新的
+            if not found_matching_tool:
                 logger.info("添加新的工具消息")
                 self.chat_messages.append({
                     "sender": "工具",
@@ -1180,6 +1187,20 @@ class MCPAgentApp:
             logger.error(f"更新工具信息时出错: {str(e)}")
             import traceback
             logger.error(traceback.format_exc())
+    
+    def get_current_query_id_from_tool_info(self, tool_info):
+        """从工具信息中提取查询ID"""
+        try:
+            # 尝试提取工具调用ID，例如 'id': 'call_7afdae80290d42a1801391'
+            import re
+            match = re.search(r"'id':\s*'([^']+)'|\"id\":\s*\"([^\"]+)\"", tool_info)
+            if match:
+                call_id = match.group(1) or match.group(2)
+                logger.info(f"从工具信息中提取到查询ID: {call_id}")
+                return call_id
+            return None
+        except Exception:
+            return None
     
     def update_status(self):
         """更新状态信息"""
