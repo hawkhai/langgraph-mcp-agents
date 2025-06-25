@@ -612,31 +612,45 @@ class MCPAgentApp:
         if hasattr(self, '_current_tool_message_start'):
             delattr(self, '_current_tool_message_start')
         
+        logger.info(f"开始处理流式模式消息: '{message}'")
+        
         # 显示思考占位符
         self.append_to_chat("助手", "🤔 正在思考...", "assistant")
-        self._current_assistant_message_start = self.chat_history.index("end-2l")
         
         # 处理查询
         def process_async():
             try:
                 # 使用 run_coroutine_threadsafe 在事件循环中运行协程
+                logger.info("发起流式协程调用")
                 future = asyncio.run_coroutine_threadsafe(
                     self.process_query_async(message), self.loop
                 )
                 resp, final_text, final_tool = future.result(timeout=self.timeout_seconds.get())
+                logger.info(f"流式报返结果: 文本长度={len(final_text) if final_text else 0}, 工具信息长度={len(final_tool) if final_tool else 0}")
                 
-                if "error" in resp:
+                if isinstance(resp, dict) and "error" in resp:
                     # 替换思考占位符为错误消息
-                    self.root.after(0, lambda: self.replace_last_assistant_message(resp["error"]))
+                    error_msg = resp["error"]
+                    logger.info(f"处理错误响应: {error_msg}")
+                    self.root.after(0, lambda: self.replace_last_assistant_message(error_msg))
                 else:
                     # 替换思考占位符为最终内容
                     if final_text:
+                        logger.info(f"更新最终助手消息: 长度={len(final_text)}")
                         self.root.after(0, lambda: self.replace_last_assistant_message(final_text))
+                    else:
+                        fallback_text = "收到回复但无法解析内容"
+                        logger.warning("流式响应没有最终文本，使用回退消息")
+                        self.root.after(0, lambda: self.replace_last_assistant_message(fallback_text))
+                    
+                    # 显示工具信息（如果有）
                     if final_tool:
+                        logger.info(f"添加工具信息: 长度={len(final_tool)}")
                         self.root.after(0, lambda: self.append_to_chat("工具", final_tool, "tool"))
                 
             except asyncio.TimeoutError:
                 error_msg = f"❌ 查询超时（超过 {self.timeout_seconds.get()} 秒）"
+                logger.error(error_msg)
                 self.root.after(0, lambda: self.replace_last_assistant_message(error_msg))
             except Exception as e:
                 error_msg = f"❌ 处理异常: {str(e)}"
@@ -645,7 +659,7 @@ class MCPAgentApp:
         
         # 在后台线程中运行处理
         threading.Thread(target=process_async, daemon=True).start()
-    
+        
     def _send_message_normal(self, message: str):
         """普通处理消息（不使用流式）"""
         # 处理查询
@@ -1100,24 +1114,35 @@ class MCPAgentApp:
     
     def update_streaming_text(self, text):
         """更新流式文本显示"""
-        if hasattr(self, '_current_assistant_message_start'):
-            try:
-                # 获取时间戳部分
-                timestamp = datetime.now().strftime("%H:%M:%S")
-                # 删除当前助手消息并替换
-                self.chat_history.delete(self._current_assistant_message_start, tk.END)
-                
-                # 直接插入新的助手消息，不通过append_to_chat避免重复设置位置
-                self.chat_history.insert(tk.END, f"[{timestamp}] 助手: {text}\n")
-                self.chat_history.see(tk.END)
-                
-                # 应用颜色标签
-                start_line = float(self.chat_history.index(tk.END)) - 2
-                self.chat_history.tag_add("msg_assistant", f"{start_line:.1f}", f"{start_line + 1:.1f}")
-                self.chat_history.tag_config("msg_assistant", foreground="green")
-            except tk.TclError:
-                # 如果出错，回退到标准方式
-                self.replace_last_assistant_message(text)
+        try:
+            logger.info(f"更新流式文本: 文本长度={len(text)}")
+            
+            # 使用结构化消息列表方式更新
+            found_assistant = False
+            for i in range(len(self.chat_messages) - 1, -1, -1):
+                if self.chat_messages[i]["type"] == "assistant":
+                    # 更新最后一条助手消息
+                    self.chat_messages[i]["message"] = text
+                    self.chat_messages[i]["timestamp"] = datetime.now().strftime("%H:%M:%S")
+                    found_assistant = True
+                    logger.info(f"更新了流式消息 {i}: 新文本长度={len(text)}")
+                    break
+            
+            if not found_assistant:
+                # 如果没有找到助手消息，添加新的
+                logger.warning("未找到要更新的助手消息，添加新消息")
+                self.chat_messages.append({
+                    "sender": "助手",
+                    "message": text,
+                    "timestamp": datetime.now().strftime("%H:%M:%S"),
+                    "type": "assistant"
+                })
+            
+            # 重建聊天历史显示
+            self.rebuild_chat_history()
+            
+        except Exception as e:
+            logger.error(f"更新流式文本出错: {str(e)}\n{traceback.format_exc()}")
     
     def update_tool_info(self, tool_info):
         """更新工具调用信息显示"""
