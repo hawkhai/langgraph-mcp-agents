@@ -355,7 +355,10 @@ class MCPAgentApp:
     def load_config(self):
         """加载配置文件"""
         try:
-            config_path = Path("config.json")
+            # 获取当前脚本所在目录，确保无论从哪里运行都能找到配置文件
+            script_dir = Path(__file__).parent
+            config_path = script_dir / "config.json"
+            
             if config_path.exists():
                 with open(config_path, 'r', encoding='utf-8') as f:
                     self.mcp_config = json.load(f)
@@ -365,13 +368,13 @@ class MCPAgentApp:
                 default_config = {
                     "get_current_time": {
                         "command": "python",
-                        "args": ["./mcp_server_time.py"],
+                        "args": [str(script_dir / "mcp_server_time.py")],  # 也使用绝对路径
                         "transport": "stdio"
                     }
                 }
                 self.mcp_config = default_config
                 self.save_config()  # 保存默认配置
-                logger.info("未找到配置文件，使用默认配置")
+                logger.info(f"未找到配置文件 {config_path}，使用默认配置")
         except Exception as e:
             logger.error(f"加载配置失败: {e}")
             self.mcp_config = {}
@@ -379,7 +382,11 @@ class MCPAgentApp:
     def save_config(self):
         """保存配置文件"""
         try:
-            with open("config.json", 'w', encoding='utf-8') as f:
+            # 获取当前脚本所在目录，确保无论从哪里运行都能找到配置文件
+            script_dir = Path(__file__).parent
+            config_path = script_dir / "config.json"
+            
+            with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(self.mcp_config, f, indent=2, ensure_ascii=False)
             logger.info("配置已保存")
             return True
@@ -443,18 +450,28 @@ class MCPAgentApp:
     async def initialize_session_async(self):
         """异步初始化会话"""
         try:
+            logger.info("开始初始化 MCP 会话...")
+            logger.info(f"当前工作目录: {os.getcwd()}")
+            logger.info(f"MCP 配置: {self.mcp_config}")
+            
             # 清理现有客户端
             await self.cleanup_mcp_client()
+            logger.info("已清理现有 MCP 客户端")
             
             # 创建 MCP 客户端
+            logger.info("正在创建 MCP 客户端...")
             self.mcp_client = MultiServerMCPClient(self.mcp_config)
+            logger.info("MCP 客户端创建成功")
             
             # 获取工具
+            logger.info("正在获取工具...")
             tools = await self.mcp_client.get_tools()
             self.tool_count = len(tools)  # 记录工具数量
+            logger.info(f"成功获取 {self.tool_count} 个工具")
             
             # 创建 Agent
             model_name = self.selected_model.get()
+            logger.info(f"正在为模型 {model_name} 创建 Agent...")
             
             # 保存当前模型信息
             self.current_model_name = model_name
@@ -465,32 +482,43 @@ class MCPAgentApp:
             else:
                 self.current_model_provider = "openai"
             
+            logger.info(f"模型提供商: {self.current_model_provider}")
+            
             # 根据模型创建不同的 LLM
             if model_name in [
                 "claude-3-7-sonnet-latest",
                 "claude-3-5-sonnet-latest", 
                 "claude-3-5-haiku-latest",
             ]:
+                logger.info("创建 Anthropic LLM...")
                 llm = ChatAnthropic(
                     model=model_name,
                     temperature=0.1,
                     max_tokens=OUTPUT_TOKEN_INFO[model_name]["max_tokens"],
                 )
             elif model_name in ["qwen-plus-latest"]:
+                logger.info("创建 Alibaba LLM...")
+                api_key = os.getenv("DASHSCOPE_API_KEY")
+                if not api_key:
+                    logger.error("DASHSCOPE_API_KEY 环境变量未设置")
+                    return False
+                logger.info(f"DASHSCOPE_API_KEY 已设置: {'是' if api_key else '否'}")
                 llm = ChatOpenAI(
                     model=model_name,
                     temperature=0.1,
                     max_tokens=OUTPUT_TOKEN_INFO[model_name]["max_tokens"],
-                    openai_api_key=os.getenv("DASHSCOPE_API_KEY"),
+                    openai_api_key=api_key,
                     openai_api_base="https://dashscope.aliyuncs.com/compatible-mode/v1"
                 )
             else:  # OpenAI models
+                logger.info("创建 OpenAI LLM...")
                 llm = ChatOpenAI(
                     model=model_name,
                     temperature=0.1,
                     max_tokens=OUTPUT_TOKEN_INFO[model_name]["max_tokens"],
                 )
             
+            logger.info("LLM 创建成功，正在创建 ReAct Agent...")
             # 创建 ReAct Agent
             self.agent = create_react_agent(
                 llm,
@@ -498,14 +526,16 @@ class MCPAgentApp:
                 checkpointer=MemorySaver(),
                 prompt=SYSTEM_PROMPT,
             )
+            logger.info("ReAct Agent 创建成功")
             
             # 标记会话已初始化
             self.session_initialized = True
-            
+            logger.info("MCP 会话初始化完成")
             return True
             
         except Exception as e:
             logger.error(f"初始化失败: {e}")
+            logger.error(f"错误类型: {type(e).__name__}")
             logger.error(traceback.format_exc())
             return False
     

@@ -1,15 +1,15 @@
 {
   "get_current_time": {
-    "command": "python",
+    "command": "I:\\pdfai_serv\\mcp\\Python310-agent\\Python310-agent\\python.exe",
     "args": [
-      "./mcp_server_time.py"
+      "I:\\pdfai_serv\\mcp\\langgraph-mcp-agents\\mcp_server_time.py"
     ],
     "transport": "stdio"
   },
   "local-process-manager": {
-    "command": "python",
+    "command": "I:\\pdfai_serv\\mcp\\Python310-agent\\Python310-agent\\python.exe",
     "args": [
-      "./process_manager_fastmcp.py"
+      "I:\\pdfai_serv\\mcp\\langgraph-mcp-agents\\process_manager_fastmcp.py"
     ],
     "disabled": false,
     "transport": "stdio"
