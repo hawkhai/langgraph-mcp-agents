@@ -48,6 +48,48 @@ async def run_agent_query_debug(agent, query, recursion_limit, thread_id, timeou
         print(f"      - Additional attributes: {msg.additional_kwargs if hasattr(msg, 'additional_kwargs') else {}}")
 
     # Step 4: 构建调用对象
+    print("[DEBUG] Agent details:")
+    print(f"  - Agent type: {type(agent)}")
+    print(f"  - Agent dir: {dir(agent)}")
+    
+    # 检查agent是否有_runnable属性，这通常是底层实现
+    if hasattr(agent, "_runnable"):
+        print(f"  - Agent._runnable type: {type(agent._runnable)}")
+        print(f"  - Agent._runnable dir: {dir(agent._runnable)}")
+    
+    # 检查agent是否有graph属性，这在LangGraph中很常见
+    if hasattr(agent, "graph"):
+        print(f"  - Agent.graph type: {type(agent.graph)}")
+        print(f"  - Agent.graph dir: {dir(agent.graph)}")
+    
+    # 使用inspect模块获取更多信息
+    import inspect
+    if hasattr(agent, "ainvoke"):
+        print(f"  - Agent.ainvoke signature: {inspect.signature(agent.ainvoke)}")
+        print(f"  - Agent.ainvoke source (if available):")
+        try:
+            print(inspect.getsource(agent.ainvoke))
+        except Exception as e:
+            print(f"    Could not get source: {e}")
+    
+    # 创建一个包装函数来跟踪调用
+    original_ainvoke = agent.ainvoke
+    
+    async def traced_ainvoke(*args, **kwargs):
+        print("[DEBUG] ainvoke called with:")
+        print(f"  - args: {args}")
+        print(f"  - kwargs: {kwargs}")
+        try:
+            result = await original_ainvoke(*args, **kwargs)
+            print("[DEBUG] ainvoke completed successfully")
+            return result
+        except Exception as e:
+            print(f"[DEBUG] ainvoke failed with: {e}")
+            raise
+    
+    # 临时替换方法以获取更多调试信息
+    agent.ainvoke = traced_ainvoke
+    
     coro = agent.ainvoke(
         req,
         config=config
