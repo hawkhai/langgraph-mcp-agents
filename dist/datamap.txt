@@ -1,5 +1,5 @@
 "config.json" 3aed1f47de828fc3465486f813310d6d 310
-"gitbigfilex.json" 67ba483726d1e1518bef7e7e4bfa3f5c 387858
+"gitbigfilex.json" e09a559ef357eafab877fb457a4fab30 388456
 "gitbigfilex_dense.zip" 5c650336b59f0fe6712e2b25d9d40400 24083388
 "GraphAgentDesktop.exe" 6f148cd6322eeee05db4d69220d1a0d0 609280
 "GraphAgentDesktop.zip" 11dbc40efacb5507eb02e2240f1fa1bb 28129441
@@ -991,7 +991,7 @@
 "GraphAgentDesktop\_internal\attrs-25.3.0.dist-info\METADATA" 70c3743909329f059ee883254e8bf64b 10993
 "GraphAgentDesktop\_internal\attrs-25.3.0.dist-info\RECORD" 8ff013ce8e9cb60aa683aa77d4f7c6c3 3556
 "GraphAgentDesktop\_internal\attrs-25.3.0.dist-info\WHEEL" e2fcb0ad9ea59332c808928b4b439e7a 87
-"GraphAgentDesktop\_internal\base_library.zip" 9ea647cd83251f288a582ce1d740bf4e 880569
+"GraphAgentDesktop\_internal\base_library.zip" 102b74d3978bed2e6c33d673d6daa5e7 880569
 "GraphAgentDesktop\_internal\certifi\cacert.pem" efc4b0783f2c84a6244631bc2aa73312 281225
 "GraphAgentDesktop\_internal\certifi\py.typed" d41d8cd98f00b204e9800998ecf8427e 0
 "GraphAgentDesktop\_internal\charset_normalizer\md.cp310-win_amd64.pyd" 8156273c4ed02983098d49bdc409952a 10752
@@ -4352,7 +4352,7 @@
 "GraphAgentDesktop\_internal\zmq\backend\cython\_zmq.cp310-win_amd64.pyd" fcee09060e1118184074657f488f2dcd 1024512
 "GraphAgentDesktop\_internal\zstandard\_cffi.cp310-win_amd64.pyd" 008913e1eabd08fe254e0c9f74bafb64 650752
 "GraphAgentDesktop\_internal\zstandard\backend_c.cp310-win_amd64.pyd" ee146c36c6f83a972594c2621e34212d 519680
-"GraphAgentDesktop\GraphAgentDesktop.exe" ba817a3017b8352b746eab184c01da3b 51269286
+"GraphAgentDesktop\GraphAgentDesktop.exe" bc74aaf02ba6dc7ccae912888d3fa89c 51269636
 "launcher.bat" 8f13416db8b0a690313feb677c83d82a 160
 "launcher.ini" c936a8d986c6e85b74adde3def646202 75
 "upgrade.bat" 6a4adf5aedbd02a23199dbc997361222 379
