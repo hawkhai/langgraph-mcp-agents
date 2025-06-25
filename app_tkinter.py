@@ -912,6 +912,24 @@ class MCPAgentApp:
         last_update_time = [0]
         update_threshold = 0.2  # 200ms 防抖动
         
+        def safe_json_str(obj):
+            """安全地将对象转换为 JSON 字符串，处理潜在的嵌套引号和特殊字符"""
+            try:
+                if isinstance(obj, str):
+                    # 如果已经是字符串，尝试解析为 JSON 对象再重新序列化
+                    try:
+                        parsed = json.loads(obj)
+                        return json.dumps(parsed, ensure_ascii=False, indent=2)
+                    except json.JSONDecodeError:
+                        # 不是有效的 JSON，直接返回经过转义的字符串
+                        return obj.replace('```', '\\```')  # 转义可能导致嵌套的 markdown 代码块标记
+                else:
+                    # 对象转 JSON 字符串
+                    return json.dumps(obj, ensure_ascii=False, indent=2, default=str)
+            except Exception:
+                # 如果转换失败，使用 str() 但确保转义关键字符
+                return str(obj).replace('```', '\\```')
+        
         def callback_func(message: dict):
             nonlocal accumulated_text, accumulated_tool
             message_content = message.get("content", None)
@@ -924,7 +942,9 @@ class MCPAgentApp:
                     message_chunk = content[0]
                     # 处理文本类型
                     if message_chunk["type"] == "text":
-                        accumulated_text.append(message_chunk["text"])
+                        # 确保文本安全，防止嵌套格式问题
+                        text = message_chunk["text"]
+                        accumulated_text.append(text)
                         # 智能防抖动更新
                         if (current_time - last_update_time[0] > update_threshold or 
                             len("".join(accumulated_text)) % 50 == 0):
@@ -934,14 +954,16 @@ class MCPAgentApp:
                     # 处理工具使用类型
                     elif message_chunk["type"] == "tool_use":
                         if "partial_json" in message_chunk:
-                            accumulated_tool.append(message_chunk["partial_json"])
+                            # 处理部分 JSON
+                            json_content = safe_json_str(message_chunk["partial_json"])
+                            accumulated_tool.append(json_content)
                         else:
                             tool_call_chunks = message_content.tool_call_chunks
                             if tool_call_chunks:
                                 tool_call_chunk = tool_call_chunks[0]
-                                accumulated_tool.append(
-                                    "\n```json\n" + str(tool_call_chunk) + "\n```\n"
-                                )
+                                # 安全地转换工具调用为 JSON
+                                json_content = safe_json_str(tool_call_chunk)
+                                accumulated_tool.append("\n```json\n" + json_content + "\n```\n")
                         # 更新工具信息
                         if accumulated_tool:
                             self.root.after(0, lambda: self.update_tool_info("".join(accumulated_tool)))
@@ -952,7 +974,9 @@ class MCPAgentApp:
                     and len(message_content.tool_calls[0]["name"]) > 0
                 ):
                     tool_call_info = message_content.tool_calls[0]
-                    accumulated_tool.append("\n```json\n" + str(tool_call_info) + "\n```\n")
+                    # 安全地转换工具调用为 JSON
+                    json_content = safe_json_str(tool_call_info)
+                    accumulated_tool.append("\n```json\n" + json_content + "\n```\n")
                     self.root.after(0, lambda: self.update_tool_info("".join(accumulated_tool)))
                 # 处理如果内容是简单字符串
                 elif isinstance(content, str):
@@ -965,9 +989,9 @@ class MCPAgentApp:
                         self.root.after(0, lambda text=full_text: self.update_streaming_text(text))
             # 处理如果是工具消息（工具响应）
             elif hasattr(message_content, '__class__') and 'ToolMessage' in str(message_content.__class__):
-                accumulated_tool.append(
-                    "\n```json\n" + str(message_content.content) + "\n```\n"
-                )
+                # 安全地处理工具消息内容
+                json_content = safe_json_str(message_content.content)
+                accumulated_tool.append("\n```json\n" + json_content + "\n```\n")
                 self.root.after(0, lambda: self.update_tool_info("".join(accumulated_tool)))
             return None
         
