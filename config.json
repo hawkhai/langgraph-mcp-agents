@@ -11,9 +11,6 @@
     "args": [
       "./process_manager_fastmcp.py"
     ],
-    "env": {
-      "PYTHONPATH": "."
-    },
     "disabled": false,
     "transport": "stdio"
   }

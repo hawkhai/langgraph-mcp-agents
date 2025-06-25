@@ -17,7 +17,6 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional
-import uuid
 
 # 设置编码
 if sys.platform.startswith('win'):
@@ -35,25 +34,74 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.messages import HumanMessage
 from dotenv import load_dotenv
 
-# 加载环境变量
-load_dotenv()
+# 加载环境变量（从 .env 文件获取 API 密钥和设置）
+load_dotenv(override=True)
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# 输出令牌配置
+# 系统提示信息
+SYSTEM_PROMPT = """<ROLE>
+你是一位智能代理，能够使用工具来回答问题。
+你将被给予一个问题，并使用工具来回答。
+选择最相关的工具来回答问题。
+如果你无法回答问题，请尝试使用不同的工具来获取上下文。
+你的答案应该非常礼貌和专业。
+</ROLE>
+
+----
+
+<INSTRUCTIONS>
+步骤 1：分析问题
+- 分析用户的问题和最终目标。
+- 如果用户的问题包含多个子问题，请将它们分解为较小的子问题。
+
+步骤 2：选择最相关的工具
+- 选择最相关的工具来回答问题。
+- 如果你无法回答问题，请尝试使用不同的工具来获取上下文。
+
+步骤 3：回答问题
+- 用相同的语言回答问题。
+- 你的答案应该非常礼貌和专业。
+
+步骤 4：提供答案来源（如果适用）
+- 如果你使用了工具，请提供答案来源。
+- 有效来源是网站（URL）或文档（PDF 等）。
+
+指南：
+- 如果你使用了工具，你的答案应该基于工具的输出（工具的输出比你自己的知识更重要）。
+- 如果你使用了工具，并且来源是有效的 URL，请提供答案来源（URL）。
+- 如果来源不是 URL，请跳过提供来源。
+- 用相同的语言回答问题。
+- 答案应该简洁明了。
+- 避免在输出中包含除答案和来源以外的任何信息。
+</INSTRUCTIONS>
+
+----
+
+<OUTPUT_FORMAT>
+(简洁的答案)
+
+**来源**（如果适用）
+- (来源 1：有效 URL)
+- (来源 2：有效 URL)
+- ...
+</OUTPUT_FORMAT>
+"""
+
+# 模型输出令牌限制信息
 OUTPUT_TOKEN_INFO = {
-    "claude-3-5-sonnet-20241022": {"max_tokens": 4096},
-    "claude-3-5-haiku-20241022": {"max_tokens": 4096},
-    "claude-3-7-sonnet-latest": {"max_tokens": 4096},
-    "gpt-4o": {"max_tokens": 4096},
-    "gpt-4o-mini": {"max_tokens": 16384},
-    "qwen2.5-72b-instruct": {"max_tokens": 8192}
+    "claude-3-5-sonnet-latest": {"max_tokens": 8192},
+    "claude-3-5-haiku-latest": {"max_tokens": 8192},
+    "claude-3-7-sonnet-latest": {"max_tokens": 64000},
+    "gpt-4o": {"max_tokens": 16000},
+    "gpt-4o-mini": {"max_tokens": 16000},
+    "qwen-plus-latest": {"max_tokens": 16000},
 }
 
 # 系统提示模板
-SYSTEM_PROMPT = """<ROLE>
+SYSTEM_INFO = """<ROLE>
 你是一位智能代理，能够使用工具来回答问题。
 你将被给予一个问题，并使用工具来回答。
 选择最相关的工具来回答问题。
@@ -115,12 +163,12 @@ class MCPAgentApp:
         self.agent = None
         self.mcp_client = None
         self.conversation_history = []
-        self.thread_id = str(uuid.uuid4())
+        self.thread_id = random_uuid()  # 使用与 app.py 相同的方式
         
         # 配置变量
-        self.selected_model = tk.StringVar(value="claude-3-5-sonnet-20241022")
-        self.timeout_seconds = tk.IntVar(value=120)
-        self.recursion_limit = tk.IntVar(value=100)
+        self.selected_model = tk.StringVar(value="qwen-plus-latest")
+        self.timeout_seconds = tk.IntVar(value=120)  # 与 app.py 一致
+        self.recursion_limit = tk.IntVar(value=100)  # 与 app.py 一致
         self.mcp_config = {}
         
         # 创建 UI
@@ -162,25 +210,65 @@ class MCPAgentApp:
         
         # 模型选择
         ttk.Label(settings_frame, text="🤖 选择模型:").pack(anchor=tk.W, pady=(0, 5))
+        
+        # 根据可用的API密钥确定可用模型
+        available_models = []
+        
+        # 检查 Anthropic API 密钥
+        has_anthropic_key = os.environ.get("ANTHROPIC_API_KEY") is not None
+        if has_anthropic_key:
+            available_models.extend([
+                "claude-3-7-sonnet-latest",
+                "claude-3-5-sonnet-latest", 
+                "claude-3-5-haiku-latest",
+            ])
+            
+        # 检查 OpenAI API 密钥
+        has_openai_key = os.environ.get("OPENAI_API_KEY") is not None
+        if has_openai_key:
+            available_models.extend(["gpt-4o", "gpt-4o-mini"])
+            
+        # 检查千问 API 密钥
+        has_dashscope_key = os.environ.get("DASHSCOPE_API_KEY") is not None
+        if has_dashscope_key:
+            available_models.extend(["qwen-plus-latest"])
+            
+        # 如果没有可用模型，显示警告并添加默认模型
+        if not available_models:
+            available_models = ["claude-3-7-sonnet-latest"]  # 默认模型用于显示UI
+            
         model_combo = ttk.Combobox(settings_frame, textvariable=self.selected_model, 
-                                  values=list(OUTPUT_TOKEN_INFO.keys()), state="readonly")
-        model_combo.pack(fill=tk.X, pady=(0, 10))
+                                  values=available_models, state="readonly")
+        model_combo.pack(fill=tk.X, pady=(0, 5))
+        
+        # API密钥提示
+        api_help = ttk.Label(settings_frame, text="💡 提示: Anthropic 模型需要 ANTHROPIC_API_KEY，\nOpenAI 模型需要 OPENAI_API_KEY，\n千问模型需要 DASHSCOPE_API_KEY", 
+                           font=("Arial", 8), foreground="gray")
+        api_help.pack(anchor=tk.W, pady=(0, 10))
         
         # 超时设置
-        ttk.Label(settings_frame, text="⏱️ 响应时间限制 (秒):").pack(anchor=tk.W, pady=(0, 5))
-        timeout_scale = ttk.Scale(settings_frame, from_=60, to=300, 
-                                 variable=self.timeout_seconds, orient=tk.HORIZONTAL)
-        timeout_scale.pack(fill=tk.X, pady=(0, 5))
-        timeout_label = ttk.Label(settings_frame, textvariable=self.timeout_seconds)
-        timeout_label.pack(anchor=tk.W, pady=(0, 10))
+        ttk.Label(settings_frame, text="⏱️ 响应生成时间限制（秒）:").pack(anchor=tk.W)
+        timeout_frame = ttk.Frame(settings_frame)
+        timeout_frame.pack(fill=tk.X, pady=(0, 5))
         
-        # 递归限制
-        ttk.Label(settings_frame, text="🔄 递归调用限制:").pack(anchor=tk.W, pady=(0, 5))
-        recursion_scale = ttk.Scale(settings_frame, from_=10, to=200, 
-                                   variable=self.recursion_limit, orient=tk.HORIZONTAL)
-        recursion_scale.pack(fill=tk.X, pady=(0, 5))
-        recursion_label = ttk.Label(settings_frame, textvariable=self.recursion_limit)
-        recursion_label.pack(anchor=tk.W, pady=(0, 10))
+        timeout_scale = tk.Scale(timeout_frame, from_=60, to=300, orient=tk.HORIZONTAL, 
+                               variable=self.timeout_seconds, resolution=10)
+        timeout_scale.pack(fill=tk.X)
+        
+        ttk.Label(settings_frame, text="💡 设置代理生成响应的最大时间。复杂任务可能需要更多时间。", 
+                 font=("Arial", 8), foreground="gray").pack(anchor=tk.W, pady=(0, 10))
+        
+        # 递归限制设置
+        ttk.Label(settings_frame, text="🔄 递归调用限制（次数）:").pack(anchor=tk.W)
+        recursion_frame = ttk.Frame(settings_frame)
+        recursion_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        recursion_scale = tk.Scale(recursion_frame, from_=10, to=200, orient=tk.HORIZONTAL, 
+                                 variable=self.recursion_limit, resolution=10)
+        recursion_scale.pack(fill=tk.X)
+        
+        ttk.Label(settings_frame, text="💡 设置递归调用限制。设置过高的值可能导致内存问题。", 
+                 font=("Arial", 8), foreground="gray").pack(anchor=tk.W, pady=(0, 10))
         
         # 工具配置按钮
         ttk.Button(settings_frame, text="🔧 配置工具", 
@@ -233,7 +321,16 @@ class MCPAgentApp:
                     self.mcp_config = json.load(f)
                 logger.info(f"已加载配置: {len(self.mcp_config)} 个工具")
             else:
-                self.mcp_config = {}
+                # 使用与 app.py 相同的默认配置
+                default_config = {
+                    "get_current_time": {
+                        "command": "python",
+                        "args": ["./mcp_server_time.py"],
+                        "transport": "stdio"
+                    }
+                }
+                self.mcp_config = default_config
+                self.save_config()  # 保存默认配置
                 logger.info("未找到配置文件，使用默认配置")
         except Exception as e:
             logger.error(f"加载配置失败: {e}")
@@ -256,31 +353,44 @@ class MCPAgentApp:
     
     def apply_settings(self):
         """应用设置"""
-        self.append_to_chat("系统", "🔄 正在应用设置...", "info")
-        
-        def apply_async():
-            future = asyncio.run_coroutine_threadsafe(
-                self.initialize_session_async(), self.loop
-            )
-            try:
-                success = future.result(timeout=30)
-                if success:
-                    self.root.after(0, lambda: self.append_to_chat("系统", "✅ 设置应用成功", "success"))
-                    self.session_initialized = True
-                    self.update_status()
-                else:
-                    self.root.after(0, lambda: self.append_to_chat("系统", "❌ 设置应用失败", "error"))
-            except Exception as e:
-                self.root.after(0, lambda: self.append_to_chat("系统", f"❌ 错误: {str(e)}", "error"))
-        
-        threading.Thread(target=apply_async, daemon=True).start()
+        try:
+            # 保存配置
+            self.save_config()
+            
+            # 显示初始化开始消息
+            self.append_to_chat("系统", "🔄 正在初始化 MCP 服务器和代理，请稍候...", "system")
+            
+            # 在后台线程中运行异步初始化
+            def init_async():
+                try:
+                    # 使用 run_coroutine_threadsafe 在事件循环中运行协程
+                    future = asyncio.run_coroutine_threadsafe(
+                        self.initialize_session_async(), self.loop
+                    )
+                    result = future.result(timeout=30)  # 30秒超时
+                    
+                    if result:
+                        self.root.after(0, lambda: self.append_to_chat("系统", "✅ 初始化成功！现在可以开始对话了。", "system"))
+                        self.root.after(0, self.update_status)
+                    else:
+                        self.root.after(0, lambda: self.append_to_chat("系统", "❌ 初始化失败，请检查配置。", "error"))
+                        
+                except Exception as e:
+                    error_msg = f"❌ 初始化异常: {str(e)}"
+                    logger.error(error_msg)
+                    self.root.after(0, lambda: self.append_to_chat("系统", error_msg, "error"))
+                    
+            threading.Thread(target=init_async, daemon=True).start()
+            
+        except Exception as e:
+            logger.error(f"应用设置错误: {e}")
+            self.append_to_chat("系统", f"❌ 应用设置错误: {str(e)}", "error")
     
     async def initialize_session_async(self):
         """异步初始化会话"""
         try:
             # 清理现有客户端
-            if self.mcp_client:
-                await self.mcp_client.close()
+            await self.cleanup_mcp_client()
             
             # 创建 MCP 客户端
             self.mcp_client = MultiServerMCPClient(self.mcp_config)
@@ -331,77 +441,220 @@ class MCPAgentApp:
             logger.error(f"初始化失败: {e}")
             return False
     
+    async def cleanup_mcp_client(self):
+        """安全终止现有的MCP客户端"""
+        if self.mcp_client is not None:
+            try:
+                # 简单设置为None，让垃圾回收处理
+                self.mcp_client = None
+            except Exception as e:
+                logger.error(f"清理MCP客户端时出错: {e}")
+    
     def reset_conversation(self):
-        """重置对话"""
-        self.conversation_history = []
-        self.thread_id = str(uuid.uuid4())
+        """重置对话历史"""
+        # 重置线程ID
+        self.thread_id = random_uuid()
+        
+        # 清空聊天历史
         self.chat_history.delete(1.0, tk.END)
-        self.append_to_chat("系统", "✅ 对话已重置", "success")
+        
+        # 添加重置消息
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self.chat_history.insert(tk.END, f"[{timestamp}] 系统: ✅ 对话已重置。\n")
+        self.chat_history.tag_add("msg_system", "end-2l", "end-1l")
+        self.chat_history.tag_config("msg_system", foreground="orange")
+        
+        logger.info("对话已重置")
     
     def send_message(self):
         """发送用户消息"""
-        user_text = self.user_input.get().strip()
-        if not user_text:
+        message = self.user_input.get().strip()
+        if not message:
             return
         
         if not self.session_initialized:
-            messagebox.showwarning("警告", "请先点击'应用设置'初始化系统")
+            self.append_to_chat("系统", "⚠️ MCP 服务器和代理尚未初始化。请点击'应用设置'按钮进行初始化。", "error")
             return
         
         # 清空输入框
         self.user_input.delete(0, tk.END)
         
         # 显示用户消息
-        self.append_to_chat("用户", user_text, "user")
+        self.append_to_chat("用户", message, "user")
         
-        # 处理消息
+        # 处理查询
         def process_async():
-            future = asyncio.run_coroutine_threadsafe(
-                self.process_query_async(user_text), self.loop
-            )
             try:
-                response = future.result(timeout=self.timeout_seconds.get())
-                self.root.after(0, lambda: self.append_to_chat("助手", response, "assistant"))
-            except asyncio.TimeoutError:
-                self.root.after(0, lambda: self.append_to_chat("系统", "⏱️ 请求超时", "error"))
+                # 使用 run_coroutine_threadsafe 在事件循环中运行协程
+                future = asyncio.run_coroutine_threadsafe(
+                    self.process_query_async(message), self.loop
+                )
+                resp, final_text, final_tool = future.result(timeout=self.timeout_seconds.get())
+                
+                if "error" in resp:
+                    # 显示错误消息
+                    self.root.after(0, lambda: self.append_to_chat("系统", resp["error"], "error"))
+                else:
+                    # 成功处理，final_text 已经通过流式回调显示了
+                    # 如果有工具调用信息，也已经通过流式回调显示了
+                    pass
+                
             except Exception as e:
-                self.root.after(0, lambda: self.append_to_chat("系统", f"❌ 错误: {str(e)}", "error"))
+                error_msg = f"❌ 处理异常: {str(e)}"
+                logger.error(error_msg)
+                self.root.after(0, lambda: self.append_to_chat("系统", error_msg, "error"))
         
+        # 在后台线程中运行处理
         threading.Thread(target=process_async, daemon=True).start()
     
-    async def process_query_async(self, query: str) -> str:
-        """异步处理用户查询"""
+    async def process_query_async(self, query: str):
+        """异步处理用户查询，与 app.py 的 process_query 函数逻辑一致"""
         try:
-            if not self.agent:
-                return "❌ Agent 未初始化"
-            
-            # 用于收集响应文本
-            accumulated_text = []
-            
-            def text_callback(chunk):
-                """处理文本响应"""
-                if hasattr(chunk, 'content') and chunk.content:
-                    accumulated_text.append(str(chunk.content))
-                    # 在主线程中更新界面
-                    self.root.after(0, lambda: self.append_partial_response(str(chunk.content)))
-            
-            # 使用 astream_graph 进行流式处理
-            response = await astream_graph(
-                self.agent,
-                {"messages": [{"role": "user", "content": query}]},
-                callback=text_callback,
-                config=RunnableConfig(
-                    recursion_limit=self.recursion_limit.get(),
-                    thread_id=self.thread_id,
-                ),
-            )
-            
-            final_text = "".join(accumulated_text)
-            return final_text if final_text else "未收到响应"
-            
+            if self.agent:
+                # 记录当前助手消息开始位置，用于流式更新
+                self._current_assistant_start = self.chat_history.index(tk.END)
+                
+                # 获取流式回调
+                streaming_callback, accumulated_text_obj, accumulated_tool_obj = self.get_streaming_callback()
+                
+                try:
+                    # 使用 asyncio.wait_for 进行超时控制
+                    response = await asyncio.wait_for(
+                        astream_graph(
+                            self.agent,
+                            {"messages": [HumanMessage(content=query)]},
+                            callback=streaming_callback,
+                            config=RunnableConfig(
+                                recursion_limit=self.recursion_limit.get(),
+                                thread_id=self.thread_id,
+                            ),
+                        ),
+                        timeout=self.timeout_seconds.get(),
+                    )
+                except asyncio.TimeoutError:
+                    error_msg = f"⏱️ 请求时间超过 {self.timeout_seconds.get()} 秒。请稍候再试。"
+                    return {"error": error_msg}, error_msg, ""
+                
+                final_text = "".join(accumulated_text_obj)
+                final_tool = "".join(accumulated_tool_obj)
+                return response, final_text, final_tool
+            else:
+                error_msg = "🚫 代理尚未初始化。"
+                return {"error": error_msg}, error_msg, ""
         except Exception as e:
-            logger.error(f"查询处理错误: {e}")
-            return f"❌ 处理错误: {str(e)}"
+            import traceback
+            error_msg = f"❌ 发生错误：{str(e)}\n{traceback.format_exc()}"
+            logger.error(error_msg)
+            return {"error": error_msg}, error_msg, ""
+    
+    def get_streaming_callback(self):
+        """
+        创建流式回调函数，用于处理 LLM 生成的流式响应
+        
+        Returns:
+            callback_func: 流式回调函数
+            accumulated_text: 累积的文本响应列表
+            accumulated_tool: 累积的工具调用信息列表
+        """
+        accumulated_text = []
+        accumulated_tool = []
+        
+        def callback_func(message: dict):
+            nonlocal accumulated_text, accumulated_tool
+            message_content = message.get("content", None)
+            
+            if isinstance(message_content, AIMessageChunk):
+                content = message_content.content
+                # 如果内容是列表形式（主要出现在 Claude 模型中）
+                if isinstance(content, list) and len(content) > 0:
+                    message_chunk = content[0]
+                    # 处理文本类型
+                    if message_chunk["type"] == "text":
+                        accumulated_text.append(message_chunk["text"])
+                        # 在 Tkinter 中实时更新显示
+                        self.root.after(0, lambda: self.update_streaming_text("".join(accumulated_text)))
+                    # 处理工具使用类型
+                    elif message_chunk["type"] == "tool_use":
+                        if "partial_json" in message_chunk:
+                            accumulated_tool.append(message_chunk["partial_json"])
+                        else:
+                            tool_call_chunks = message_content.tool_call_chunks
+                            if tool_call_chunks:
+                                tool_call_chunk = tool_call_chunks[0]
+                                accumulated_tool.append(
+                                    "\n```json\n" + str(tool_call_chunk) + "\n```\n"
+                                )
+                        # 在 Tkinter 中更新工具信息显示
+                        self.root.after(0, lambda: self.update_tool_info("".join(accumulated_tool)))
+                # 处理如果 tool_calls 属性存在（主要出现在 OpenAI 模型中）
+                elif (
+                    hasattr(message_content, "tool_calls")
+                    and message_content.tool_calls
+                    and len(message_content.tool_calls[0]["name"]) > 0
+                ):
+                    tool_call_info = message_content.tool_calls[0]
+                    accumulated_tool.append("\n```json\n" + str(tool_call_info) + "\n```\n")
+                    self.root.after(0, lambda: self.update_tool_info("".join(accumulated_tool)))
+                # 处理如果内容是简单字符串
+                elif isinstance(content, str):
+                    accumulated_text.append(content)
+                    self.root.after(0, lambda: self.update_streaming_text("".join(accumulated_text)))
+                # 处理如果存在无效的工具调用信息
+                elif (
+                    hasattr(message_content, "invalid_tool_calls")
+                    and message_content.invalid_tool_calls
+                ):
+                    tool_call_info = message_content.invalid_tool_calls[0]
+                    accumulated_tool.append("\n```json\n" + str(tool_call_info) + "\n```\n")
+                    self.root.after(0, lambda: self.update_tool_info("".join(accumulated_tool)))
+                # 处理如果 tool_call_chunks 属性存在
+                elif (
+                    hasattr(message_content, "tool_call_chunks")
+                    and message_content.tool_call_chunks
+                ):
+                    tool_call_chunk = message_content.tool_call_chunks[0]
+                    accumulated_tool.append(
+                        "\n```json\n" + str(tool_call_chunk) + "\n```\n"
+                    )
+                    self.root.after(0, lambda: self.update_tool_info("".join(accumulated_tool)))
+                # 处理如果 tool_calls 存在于 additional_kwargs 中（支持各种模型兼容性）
+                elif (
+                    hasattr(message_content, "additional_kwargs")
+                    and "tool_calls" in message_content.additional_kwargs
+                ):
+                    tool_call_info = message_content.additional_kwargs["tool_calls"][0]
+                    accumulated_tool.append("\n```json\n" + str(tool_call_info) + "\n```\n")
+                    self.root.after(0, lambda: self.update_tool_info("".join(accumulated_tool)))
+            # 处理如果是工具消息（工具响应）
+            elif hasattr(message_content, '__class__') and 'ToolMessage' in str(message_content.__class__):
+                accumulated_tool.append(
+                    "\n```json\n" + str(message_content.content) + "\n```\n"
+                )
+                self.root.after(0, lambda: self.update_tool_info("".join(accumulated_tool)))
+            return None
+        
+        return callback_func, accumulated_text, accumulated_tool
+    
+    def update_streaming_text(self, text):
+        """更新流式文本显示"""
+        # 清除当前助手消息并重新显示
+        if hasattr(self, '_current_assistant_start'):
+            self.chat_history.delete(self._current_assistant_start, tk.END)
+        
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self.chat_history.insert(tk.END, f"[{timestamp}] 助手: {text}\n")
+        self.chat_history.tag_add("msg_assistant", "end-2l", "end-1l")
+        self.chat_history.tag_config("msg_assistant", foreground="blue")
+        self.chat_history.see(tk.END)
+    
+    def update_tool_info(self, tool_info):
+        """更新工具调用信息显示"""
+        if tool_info.strip():
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            self.chat_history.insert(tk.END, f"[{timestamp}] 工具: {tool_info}\n")
+            self.chat_history.tag_add("msg_tool", "end-2l", "end-1l")
+            self.chat_history.tag_config("msg_tool", foreground="green")
+            self.chat_history.see(tk.END)
     
     def append_to_chat(self, sender: str, message: str, msg_type: str = "normal"):
         """向聊天窗口添加消息"""
@@ -430,21 +683,15 @@ class MCPAgentApp:
         self.chat_history.tag_add(f"msg_{msg_type}", f"{start_line:.1f}", f"{start_line + 1:.1f}")
         self.chat_history.tag_config(f"msg_{msg_type}", foreground=color)
     
-    def append_partial_response(self, message: str):
-        """向聊天窗口添加部分响应"""
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        self.chat_history.insert(tk.END, f"[{timestamp}] 助手: {message}\n")
-        self.chat_history.see(tk.END)
-    
     def update_status(self):
         """更新状态信息"""
         if self.session_initialized:
-            self.status_label.config(text="状态: 已初始化")
-            tool_count = len(self.mcp_config)
-            self.tool_count_label.config(text=f"工具数量: {tool_count}")
+            tool_count = len(self.mcp_config) if self.mcp_config else 0
+            status = f"状态: ✅ 已连接 | 🛠️ 工具数量: {tool_count} | 🧠 模型: {self.selected_model.get()}"
         else:
-            self.status_label.config(text="状态: 未初始化")
-            self.tool_count_label.config(text="工具数量: 0")
+            status = "状态: ❌ 未初始化 - 请点击'应用设置'按钮进行初始化"
+        
+        self.status_label.config(text=status)
     
     def run(self):
         """运行应用"""
@@ -632,7 +879,7 @@ def main():
     """主函数"""
     # 加载环境变量
     from dotenv import load_dotenv
-    load_dotenv()
+    load_dotenv(override=True)
     
     # 创建并运行应用
     app = MCPAgentApp()
