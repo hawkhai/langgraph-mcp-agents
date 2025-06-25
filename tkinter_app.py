@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 import platform
 import nest_asyncio
+import time
 
 # 平台特定的事件循环策略设置（Windows 平台）
 if platform.system() == "Windows":
@@ -527,6 +528,14 @@ class MCPAgentApp:
         # 显示用户消息
         self.append_to_chat("用户", message, "user")
         
+        # 清理之前的流式状态
+        if hasattr(self, '_current_tool_message_start'):
+            delattr(self, '_current_tool_message_start')
+        
+        # 显示思考占位符
+        self.append_to_chat("助手", "🤔 正在思考...", "assistant")
+        self._current_assistant_message_start = self.chat_history.index("end-2l linestart")
+        
         # 处理查询
         def process_async():
             try:
@@ -537,22 +546,22 @@ class MCPAgentApp:
                 resp, final_text, final_tool = future.result(timeout=self.timeout_seconds.get())
                 
                 if "error" in resp:
-                    # 显示错误消息
-                    self.root.after(0, lambda: self.append_to_chat("系统", resp["error"], "error"))
+                    # 替换思考占位符为错误消息
+                    self.root.after(0, lambda: self.replace_last_assistant_message(resp["error"]))
                 else:
-                    # 只在最终显示完整内容
+                    # 替换思考占位符为最终内容
                     if final_text:
-                        self.root.after(0, lambda: self.append_to_chat("助手", final_text, "assistant"))
+                        self.root.after(0, lambda: self.replace_last_assistant_message(final_text))
                     if final_tool:
                         self.root.after(0, lambda: self.append_to_chat("工具", final_tool, "tool"))
                 
             except asyncio.TimeoutError:
                 error_msg = f"❌ 查询超时（超过 {self.timeout_seconds.get()} 秒）"
-                self.root.after(0, lambda: self.append_to_chat("系统", error_msg, "error"))
+                self.root.after(0, lambda: self.replace_last_assistant_message(error_msg))
             except Exception as e:
                 error_msg = f"❌ 处理异常: {str(e)}"
                 logger.error(f"{error_msg}\n{traceback.format_exc()}")
-                self.root.after(0, lambda: self.append_to_chat("系统", error_msg, "error"))
+                self.root.after(0, lambda: self.replace_last_assistant_message(error_msg))
         
         # 在后台线程中运行处理
         threading.Thread(target=process_async, daemon=True).start()
@@ -605,10 +614,13 @@ class MCPAgentApp:
         """
         accumulated_text = []
         accumulated_tool = []
+        last_update_time = [0]
+        update_threshold = 0.2  # 200ms 防抖动
         
         def callback_func(message: dict):
             nonlocal accumulated_text, accumulated_tool
             message_content = message.get("content", None)
+            current_time = time.time()
             
             if isinstance(message_content, AIMessageChunk):
                 content = message_content.content
@@ -618,6 +630,12 @@ class MCPAgentApp:
                     # 处理文本类型
                     if message_chunk["type"] == "text":
                         accumulated_text.append(message_chunk["text"])
+                        # 智能防抖动更新
+                        if (current_time - last_update_time[0] > update_threshold or 
+                            len("".join(accumulated_text)) % 50 == 0):
+                            full_text = "".join(accumulated_text)
+                            last_update_time[0] = current_time
+                            self.root.after(0, lambda text=full_text: self.update_streaming_text(text))
                     # 处理工具使用类型
                     elif message_chunk["type"] == "tool_use":
                         if "partial_json" in message_chunk:
@@ -629,6 +647,9 @@ class MCPAgentApp:
                                 accumulated_tool.append(
                                     "\n```json\n" + str(tool_call_chunk) + "\n```\n"
                                 )
+                        # 更新工具信息
+                        if accumulated_tool:
+                            self.root.after(0, lambda: self.update_tool_info("".join(accumulated_tool)))
                 # 处理如果 tool_calls 属性存在（主要出现在 OpenAI 模型中）
                 elif (
                     hasattr(message_content, "tool_calls")
@@ -637,14 +658,22 @@ class MCPAgentApp:
                 ):
                     tool_call_info = message_content.tool_calls[0]
                     accumulated_tool.append("\n```json\n" + str(tool_call_info) + "\n```\n")
+                    self.root.after(0, lambda: self.update_tool_info("".join(accumulated_tool)))
                 # 处理如果内容是简单字符串
                 elif isinstance(content, str):
                     accumulated_text.append(content)
+                    # 智能防抖动更新
+                    if (current_time - last_update_time[0] > update_threshold or 
+                        len("".join(accumulated_text)) % 30 == 0):
+                        full_text = "".join(accumulated_text)
+                        last_update_time[0] = current_time
+                        self.root.after(0, lambda text=full_text: self.update_streaming_text(text))
             # 处理如果是工具消息（工具响应）
             elif hasattr(message_content, '__class__') and 'ToolMessage' in str(message_content.__class__):
                 accumulated_tool.append(
                     "\n```json\n" + str(message_content.content) + "\n```\n"
                 )
+                self.root.after(0, lambda: self.update_tool_info("".join(accumulated_tool)))
             return None
         
         return callback_func, accumulated_text, accumulated_tool
@@ -675,6 +704,46 @@ class MCPAgentApp:
         start_line = float(self.chat_history.index(tk.END)) - 2
         self.chat_history.tag_add(f"msg_{msg_type}", f"{start_line:.1f}", f"{start_line + 1:.1f}")
         self.chat_history.tag_config(f"msg_{msg_type}", foreground=color)
+    
+    def replace_last_assistant_message(self, message: str):
+        """替换最后一条助手消息"""
+        if hasattr(self, '_current_assistant_message_start'):
+            self.chat_history.delete(self._current_assistant_message_start, "end-1l")
+            self.append_to_chat("助手", message, "assistant")
+    
+    def update_streaming_text(self, text):
+        """更新流式文本显示"""
+        if hasattr(self, '_current_assistant_message_start'):
+            try:
+                # 获取时间戳部分
+                timestamp = datetime.now().strftime("%H:%M:%S")
+                # 删除当前助手消息并替换
+                self.chat_history.delete(self._current_assistant_message_start, "end-1l")
+                self.chat_history.insert(self._current_assistant_message_start, f"[{timestamp}] 助手: {text}\n")
+                self.chat_history.tag_add("msg_assistant", self._current_assistant_message_start, "end-1l")
+                self.chat_history.tag_config("msg_assistant", foreground="blue")
+                self.chat_history.see(tk.END)
+            except tk.TclError:
+                # 如果出错，回退到标准方式
+                self.replace_last_assistant_message(text)
+    
+    def update_tool_info(self, tool_info):
+        """更新工具调用信息显示"""
+        if tool_info.strip():
+            # 检查是否已经有工具消息，如果有就更新，否则新建
+            if not hasattr(self, '_current_tool_message_start'):
+                self.append_to_chat("工具", tool_info, "tool")
+                self._current_tool_message_start = self.chat_history.index("end-2l linestart")
+            else:
+                try:
+                    timestamp = datetime.now().strftime("%H:%M:%S")
+                    self.chat_history.delete(self._current_tool_message_start, "end-1l")
+                    self.chat_history.insert(self._current_tool_message_start, f"[{timestamp}] 工具: {tool_info}\n")
+                    self.chat_history.tag_add("msg_tool", self._current_tool_message_start, "end-1l")
+                    self.chat_history.tag_config("msg_tool", foreground="green")
+                    self.chat_history.see(tk.END)
+                except tk.TclError:
+                    self.append_to_chat("工具", tool_info, "tool")
     
     def update_status(self):
         """更新状态信息"""
