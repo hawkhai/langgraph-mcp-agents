@@ -17,6 +17,15 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional
+import platform
+import nest_asyncio
+
+# 平台特定的事件循环策略设置（Windows 平台）
+if platform.system() == "Windows":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
+# 应用 nest_asyncio: 允许在已运行的事件循环中进行嵌套调用
+nest_asyncio.apply()
 
 # 设置编码
 if sys.platform.startswith('win'):
@@ -164,6 +173,7 @@ class MCPAgentApp:
         self.mcp_client = None
         self.conversation_history = []
         self.thread_id = random_uuid()  # 使用与 app.py 相同的方式
+        self.tool_count = 0  # 初始化工具数量
         
         # 配置变量
         self.selected_model = tk.StringVar(value="qwen-plus-latest")
@@ -175,19 +185,29 @@ class MCPAgentApp:
         self.create_widgets()
         self.load_config()
         
-        # 异步事件循环
+        # 创建和重用全局事件循环（创建一次并持续使用）
         self.loop = None
         self.start_async_loop()
-    
+
     def start_async_loop(self):
         """在单独线程中启动异步事件循环"""
         def run_loop():
+            # 创建新的事件循环
             self.loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self.loop)
-            self.loop.run_forever()
+            try:
+                self.loop.run_forever()
+            except Exception as e:
+                logger.error(f"事件循环错误: {e}")
+            finally:
+                self.loop.close()
         
         thread = threading.Thread(target=run_loop, daemon=True)
         thread.start()
+        
+        # 等待事件循环启动
+        import time
+        time.sleep(0.1)
     
     def create_widgets(self):
         """创建主界面组件"""
@@ -354,6 +374,11 @@ class MCPAgentApp:
     def apply_settings(self):
         """应用设置"""
         try:
+            # 检查事件循环是否就绪
+            if self.loop is None:
+                self.append_to_chat("系统", "❌ 事件循环尚未就绪，请稍后重试。", "error")
+                return
+                
             # 保存配置
             self.save_config()
             
@@ -363,27 +388,36 @@ class MCPAgentApp:
             # 在后台线程中运行异步初始化
             def init_async():
                 try:
+                    # 确保事件循环正在运行
+                    if not self.loop.is_running():
+                        self.root.after(0, lambda: self.append_to_chat("系统", "❌ 事件循环未运行", "error"))
+                        return
+                        
                     # 使用 run_coroutine_threadsafe 在事件循环中运行协程
                     future = asyncio.run_coroutine_threadsafe(
                         self.initialize_session_async(), self.loop
                     )
-                    result = future.result(timeout=30)  # 30秒超时
+                    result = future.result(timeout=60)  # 增加到60秒超时
                     
                     if result:
-                        self.root.after(0, lambda: self.append_to_chat("系统", "✅ 初始化成功！现在可以开始对话了。", "system"))
+                        success_msg = f"✅ 初始化成功！已连接 {getattr(self, 'tool_count', 0)} 个工具。现在可以开始对话了。"
+                        self.root.after(0, lambda: self.append_to_chat("系统", success_msg, "system"))
                         self.root.after(0, self.update_status)
                     else:
-                        self.root.after(0, lambda: self.append_to_chat("系统", "❌ 初始化失败，请检查配置。", "error"))
+                        self.root.after(0, lambda: self.append_to_chat("系统", "❌ 初始化失败，请检查配置和网络连接。", "error"))
                         
+                except asyncio.TimeoutError:
+                    error_msg = "❌ 初始化超时，请检查网络连接或工具配置。"
+                    self.root.after(0, lambda: self.append_to_chat("系统", error_msg, "error"))
                 except Exception as e:
                     error_msg = f"❌ 初始化异常: {str(e)}"
-                    logger.error(error_msg)
+                    logger.error(f"{error_msg}\n{traceback.format_exc()}")
                     self.root.after(0, lambda: self.append_to_chat("系统", error_msg, "error"))
                     
             threading.Thread(target=init_async, daemon=True).start()
             
         except Exception as e:
-            logger.error(f"应用设置错误: {e}")
+            logger.error(f"应用设置错误: {e}\n{traceback.format_exc()}")
             self.append_to_chat("系统", f"❌ 应用设置错误: {str(e)}", "error")
     
     async def initialize_session_async(self):
@@ -397,6 +431,7 @@ class MCPAgentApp:
             
             # 获取工具
             tools = await self.mcp_client.get_tools()
+            self.tool_count = len(tools)  # 记录工具数量
             
             # 创建 Agent
             model_name = self.selected_model.get()
@@ -435,10 +470,14 @@ class MCPAgentApp:
                 prompt=SYSTEM_PROMPT,
             )
             
+            # 标记会话已初始化
+            self.session_initialized = True
+            
             return True
             
         except Exception as e:
             logger.error(f"初始化失败: {e}")
+            logger.error(traceback.format_exc())
             return False
     
     async def cleanup_mcp_client(self):
@@ -475,6 +514,10 @@ class MCPAgentApp:
         if not self.session_initialized:
             self.append_to_chat("系统", "⚠️ MCP 服务器和代理尚未初始化。请点击'应用设置'按钮进行初始化。", "error")
             return
+            
+        if self.loop is None or not self.loop.is_running():
+            self.append_to_chat("系统", "❌ 事件循环未就绪，请稍后重试。", "error")
+            return
         
         # 清空输入框
         self.user_input.delete(0, tk.END)
@@ -499,9 +542,12 @@ class MCPAgentApp:
                     # 如果有工具调用信息，也已经通过流式回调显示了
                     pass
                 
+            except asyncio.TimeoutError:
+                error_msg = f"❌ 查询超时（超过 {self.timeout_seconds.get()} 秒）"
+                self.root.after(0, lambda: self.append_to_chat("系统", error_msg, "error"))
             except Exception as e:
                 error_msg = f"❌ 处理异常: {str(e)}"
-                logger.error(error_msg)
+                logger.error(f"{error_msg}\n{traceback.format_exc()}")
                 self.root.after(0, lambda: self.append_to_chat("系统", error_msg, "error"))
         
         # 在后台线程中运行处理
@@ -686,7 +732,7 @@ class MCPAgentApp:
     def update_status(self):
         """更新状态信息"""
         if self.session_initialized:
-            tool_count = len(self.mcp_config) if self.mcp_config else 0
+            tool_count = getattr(self, 'tool_count', len(self.mcp_config) if self.mcp_config else 0)
             status = f"状态: ✅ 已连接 | 🛠️ 工具数量: {tool_count} | 🧠 模型: {self.selected_model.get()}"
         else:
             status = "状态: ❌ 未初始化 - 请点击'应用设置'按钮进行初始化"
