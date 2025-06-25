@@ -19,20 +19,20 @@ async def astream_graph(
     include_subgraphs: bool = False,
 ) -> Dict[str, Any]:
     """
-    LangGraph의 실행 결과를 비동기적으로 스트리밍하고 직접 출력하는 함수입니다.
+    异步流式处理 LangGraph 的执行结果并直接输出的函数。
 
     Args:
-        graph (CompiledStateGraph): 실행할 컴파일된 LangGraph 객체
-        inputs (dict): 그래프에 전달할 입력값 딕셔너리
-        config (Optional[RunnableConfig]): 실행 설정 (선택적)
-        node_names (List[str], optional): 출력할 노드 이름 목록. 기본값은 빈 리스트
-        callback (Optional[Callable], optional): 각 청크 처리를 위한 콜백 함수. 기본값은 None
-            콜백 함수는 {"node": str, "content": Any} 형태의 딕셔너리를 인자로 받습니다.
-        stream_mode (str, optional): 스트리밍 모드 ("messages" 또는 "updates"). 기본값은 "messages"
-        include_subgraphs (bool, optional): 서브그래프 포함 여부. 기본값은 False
+        graph (CompiledStateGraph): 要执行的已编译 LangGraph 对象
+        inputs (dict): 传递给图的输入值字典
+        config (Optional[RunnableConfig]): 执行配置 (可选)
+        node_names (List[str], optional): 要输出的节点名称列表。默认值为空列表
+        callback (Optional[Callable], optional): 处理每个数据块的回调函数。默认值为 None
+            回调函数接收 {"node": str, "content": Any} 形式的字典作为参数。
+        stream_mode (str, optional): 流式处理模式 ("messages" 或 "updates")。默认值为 "messages"
+        include_subgraphs (bool, optional): 是否包含子图。默认值为 False
 
     Returns:
-        Dict[str, Any]: 최종 결과 (선택적)
+        Dict[str, Any]: 最终结果 (可选)
     """
     config = config or {}
     final_result = {}
@@ -53,53 +53,53 @@ async def astream_graph(
                 "metadata": metadata,
             }
 
-            # node_names가 비어있거나 현재 노드가 node_names에 있는 경우에만 처리
+            # 只有当 node_names 为空或当前节点在 node_names 中时才处理
             if not node_names or curr_node in node_names:
-                # 콜백 함수가 있는 경우 실행
+                # 如果有回调函数则执行
                 if callback:
                     result = callback({"node": curr_node, "content": chunk_msg})
                     if hasattr(result, "__await__"):
                         await result
-                # 콜백이 없는 경우 기본 출력
+                # 没有回调时的默认输出
                 else:
-                    # 노드가 변경된 경우에만 구분선 출력
+                    # 只有当节点改变时才输出分隔线
                     if curr_node != prev_node:
                         print("\n" + "=" * 50)
                         print(f"🔄 Node: \033[1;36m{curr_node}\033[0m 🔄")
                         print("- " * 25)
 
-                    # Claude/Anthropic 모델의 토큰 청크 처리 - 항상 텍스트만 추출
+                    # Claude/Anthropic 模型的 token 数据块处理 - 始终只提取文本
                     if hasattr(chunk_msg, "content"):
-                        # 리스트 형태의 content (Anthropic/Claude 스타일)
+                        # 列表形式的 content (Anthropic/Claude 风格)
                         if isinstance(chunk_msg.content, list):
                             for item in chunk_msg.content:
                                 if isinstance(item, dict) and "text" in item:
                                     print(item["text"], end="", flush=True)
-                        # 문자열 형태의 content
+                        # 字符串形式的 content
                         elif isinstance(chunk_msg.content, str):
                             print(chunk_msg.content, end="", flush=True)
-                    # 그 외 형태의 chunk_msg 처리
+                    # 处理其他形式的 chunk_msg
                     else:
                         print(chunk_msg, end="", flush=True)
 
                 prev_node = curr_node
 
     elif stream_mode == "updates":
-        # 에러 수정: 언패킹 방식 변경
-        # REACT 에이전트 등 일부 그래프에서는 단일 딕셔너리만 반환함
+        # 错误修复: 更改解包方式
+        # REACT 代理等某些图只返回单个字典
         async for chunk in graph.astream(
             inputs, config, stream_mode=stream_mode, subgraphs=include_subgraphs
         ):
-            # 반환 형식에 따라 처리 방법 분기
+            # 根据返回格式分别处理
             if isinstance(chunk, tuple) and len(chunk) == 2:
-                # 기존 예상 형식: (namespace, chunk_dict)
+                # 预期格式: (namespace, chunk_dict)
                 namespace, node_chunks = chunk
             else:
-                # 단일 딕셔너리만 반환하는 경우 (REACT 에이전트 등)
-                namespace = []  # 빈 네임스페이스 (루트 그래프)
-                node_chunks = chunk  # chunk 자체가 노드 청크 딕셔너리
+                # 只返回单个字典的情况 (REACT 代理等)
+                namespace = []  # 空命名空间 (根图)
+                node_chunks = chunk  # chunk 本身就是节点数据块字典
 
-            # 딕셔너리인지 확인하고 항목 처리
+            # 确认是字典并处理条目
             if isinstance(node_chunks, dict):
                 for node_name, node_chunk in node_chunks.items():
                     final_result = {
@@ -108,106 +108,63 @@ async def astream_graph(
                         "namespace": namespace,
                     }
 
-                    # node_names가 비어있지 않은 경우에만 필터링
-                    if len(node_names) > 0 and node_name not in node_names:
+                    # 只有当 node_names 不为空时才进行过滤
+                    if node_names and node_name not in node_names:
                         continue
 
-                    # 콜백 함수가 있는 경우 실행
+                    # 如果有回调函数则执行
                     if callback is not None:
                         result = callback({"node": node_name, "content": node_chunk})
+                        # 如果是协程则 await
                         if hasattr(result, "__await__"):
                             await result
-                    # 콜백이 없는 경우 기본 출력
+                    # 没有回调时的默认输出
                     else:
-                        # 노드가 변경된 경우에만 구분선 출력 (messages 모드와 동일하게)
-                        if node_name != prev_node:
-                            print("\n" + "=" * 50)
+                        print("\n" + "=" * 50)
+                        formatted_namespace = format_namespace(namespace)
+                        if formatted_namespace == "root graph":
                             print(f"🔄 Node: \033[1;36m{node_name}\033[0m 🔄")
-                            print("- " * 25)
+                        else:
+                            print(
+                                f"🔄 Node: \033[1;36m{node_name}\033[0m in [\033[1;33m{formatted_namespace}\033[0m] 🔄"
+                            )
+                        print("- " * 25)
 
-                        # 노드의 청크 데이터 출력 - 텍스트 중심으로 처리
+                        # 输出节点的数据块数据
                         if isinstance(node_chunk, dict):
                             for k, v in node_chunk.items():
                                 if isinstance(v, BaseMessage):
-                                    # BaseMessage의 content 속성이 텍스트나 리스트인 경우를 처리
-                                    if hasattr(v, "content"):
-                                        if isinstance(v.content, list):
-                                            for item in v.content:
-                                                if (
-                                                    isinstance(item, dict)
-                                                    and "text" in item
-                                                ):
-                                                    print(
-                                                        item["text"], end="", flush=True
-                                                    )
-                                        else:
-                                            print(v.content, end="", flush=True)
-                                    else:
-                                        v.pretty_print()
+                                    v.pretty_print()
                                 elif isinstance(v, list):
                                     for list_item in v:
                                         if isinstance(list_item, BaseMessage):
-                                            if hasattr(list_item, "content"):
-                                                if isinstance(list_item.content, list):
-                                                    for item in list_item.content:
-                                                        if (
-                                                            isinstance(item, dict)
-                                                            and "text" in item
-                                                        ):
-                                                            print(
-                                                                item["text"],
-                                                                end="",
-                                                                flush=True,
-                                                            )
-                                                else:
-                                                    print(
-                                                        list_item.content,
-                                                        end="",
-                                                        flush=True,
-                                                    )
-                                            else:
-                                                list_item.pretty_print()
-                                        elif (
-                                            isinstance(list_item, dict)
-                                            and "text" in list_item
-                                        ):
-                                            print(list_item["text"], end="", flush=True)
+                                            list_item.pretty_print()
                                         else:
-                                            print(list_item, end="", flush=True)
-                                elif isinstance(v, dict) and "text" in v:
-                                    print(v["text"], end="", flush=True)
+                                            print(list_item)
+                                elif isinstance(v, dict):
+                                    for node_chunk_key, node_chunk_value in v.items():
+                                        print(f"{node_chunk_key}:\n{node_chunk_value}")
                                 else:
-                                    print(v, end="", flush=True)
+                                    print(f"\033[1;32m{k}\033[0m:\n{v}")
                         elif node_chunk is not None:
                             if hasattr(node_chunk, "__iter__") and not isinstance(
                                 node_chunk, str
                             ):
                                 for item in node_chunk:
-                                    if isinstance(item, dict) and "text" in item:
-                                        print(item["text"], end="", flush=True)
-                                    else:
-                                        print(item, end="", flush=True)
+                                    print(item)
                             else:
-                                print(node_chunk, end="", flush=True)
-
-                        # 구분선을 여기서 출력하지 않음 (messages 모드와 동일하게)
-
-                    prev_node = node_name
+                                print(node_chunk)
+                        print("=" * 50)
             else:
-                # 딕셔너리가 아닌 경우 전체 청크 출력
+                # 非字典情况，输出整个数据块
                 print("\n" + "=" * 50)
                 print(f"🔄 Raw output 🔄")
                 print("- " * 25)
-                print(node_chunks, end="", flush=True)
-                # 구분선을 여기서 출력하지 않음
+                print(node_chunks)
+                print("=" * 50)
                 final_result = {"content": node_chunks}
 
-    else:
-        raise ValueError(
-            f"Invalid stream_mode: {stream_mode}. Must be 'messages' or 'updates'."
-        )
-
-    # 필요에 따라 최종 결과 반환
+    # 返回最终结果
     return final_result
 
 
@@ -220,19 +177,19 @@ async def ainvoke_graph(
     include_subgraphs: bool = True,
 ) -> Dict[str, Any]:
     """
-    LangGraph 앱의 실행 결과를 비동기적으로 스트리밍하여 출력하는 함수입니다.
+    异步流式处理 LangGraph 应用的执行结果并输出的函数。
 
     Args:
-        graph (CompiledStateGraph): 실행할 컴파일된 LangGraph 객체
-        inputs (dict): 그래프에 전달할 입력값 딕셔너리
-        config (Optional[RunnableConfig]): 실행 설정 (선택적)
-        node_names (List[str], optional): 출력할 노드 이름 목록. 기본값은 빈 리스트
-        callback (Optional[Callable], optional): 각 청크 처리를 위한 콜백 함수. 기본값은 None
-            콜백 함수는 {"node": str, "content": Any} 형태의 딕셔너리를 인자로 받습니다.
-        include_subgraphs (bool, optional): 서브그래프 포함 여부. 기본값은 True
+        graph (CompiledStateGraph): 要执行的已编译 LangGraph 对象
+        inputs (dict): 传递给图的输入值字典
+        config (Optional[RunnableConfig]): 执行配置 (可选)
+        node_names (List[str], optional): 要输出的节点名称列表。默认值为空列表
+        callback (Optional[Callable], optional): 处理每个数据块的回调函数。默认值为 None
+            回调函数接收 {"node": str, "content": Any} 形式的字典作为参数。
+        include_subgraphs (bool, optional): 是否包含子图的输出。默认值为 True
 
     Returns:
-        Dict[str, Any]: 최종 결과 (마지막 노드의 출력)
+        Dict[str, Any]: 最终结果 (最后一个节点的输出)
     """
     config = config or {}
     final_result = {}
@@ -240,20 +197,20 @@ async def ainvoke_graph(
     def format_namespace(namespace):
         return namespace[-1].split(":")[0] if len(namespace) > 0 else "root graph"
 
-    # subgraphs 매개변수를 통해 서브그래프의 출력도 포함
+    # subgraphs 参数用于包含子图的输出
     async for chunk in graph.astream(
         inputs, config, stream_mode="updates", subgraphs=include_subgraphs
     ):
-        # 반환 형식에 따라 처리 방법 분기
+        # 根据返回格式分别处理
         if isinstance(chunk, tuple) and len(chunk) == 2:
-            # 기존 예상 형식: (namespace, chunk_dict)
+            # 预期格式: (namespace, chunk_dict)
             namespace, node_chunks = chunk
         else:
-            # 단일 딕셔너리만 반환하는 경우 (REACT 에이전트 등)
-            namespace = []  # 빈 네임스페이스 (루트 그래프)
-            node_chunks = chunk  # chunk 자체가 노드 청크 딕셔너리
+            # 只返回单个字典的情况 (REACT 代理等)
+            namespace = []  # 空命名空间 (根图)
+            node_chunks = chunk  # chunk 本身就是节点数据块字典
 
-        # 딕셔너리인지 확인하고 항목 처리
+        # 确认是字典并处理条目
         if isinstance(node_chunks, dict):
             for node_name, node_chunk in node_chunks.items():
                 final_result = {
@@ -262,17 +219,17 @@ async def ainvoke_graph(
                     "namespace": namespace,
                 }
 
-                # node_names가 비어있지 않은 경우에만 필터링
+                # 只有当 node_names 不为空时才进行过滤
                 if node_names and node_name not in node_names:
                     continue
 
-                # 콜백 함수가 있는 경우 실행
+                # 如果有回调函数则执行
                 if callback is not None:
                     result = callback({"node": node_name, "content": node_chunk})
-                    # 코루틴인 경우 await
+                    # 如果是协程则 await
                     if hasattr(result, "__await__"):
                         await result
-                # 콜백이 없는 경우 기본 출력
+                # 没有回调时的默认输出
                 else:
                     print("\n" + "=" * 50)
                     formatted_namespace = format_namespace(namespace)
@@ -284,7 +241,7 @@ async def ainvoke_graph(
                         )
                     print("- " * 25)
 
-                    # 노드의 청크 데이터 출력
+                    # 输出节点的数据块数据
                     if isinstance(node_chunk, dict):
                         for k, v in node_chunk.items():
                             if isinstance(v, BaseMessage):
@@ -310,7 +267,7 @@ async def ainvoke_graph(
                             print(node_chunk)
                     print("=" * 50)
         else:
-            # 딕셔너리가 아닌 경우 전체 청크 출력
+            # 非字典情况，输出整个数据块
             print("\n" + "=" * 50)
             print(f"🔄 Raw output 🔄")
             print("- " * 25)
@@ -318,5 +275,5 @@ async def ainvoke_graph(
             print("=" * 50)
             final_result = {"content": node_chunks}
 
-    # 최종 결과 반환
+    # 返回最终结果
     return final_result
