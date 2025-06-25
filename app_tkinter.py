@@ -195,6 +195,7 @@ class MCPAgentApp:
         self.selected_model = tk.StringVar(value="qwen-plus-latest")
         self.timeout_seconds = tk.IntVar(value=120)  # 与 app.py 一致
         self.recursion_limit = tk.IntVar(value=100)  # 与 app.py 一致
+        self.streaming_enabled = tk.BooleanVar(value=False)  # 默认使用普通返回
         self.mcp_config = {}
         
         # 创建 UI
@@ -305,6 +306,17 @@ class MCPAgentApp:
         
         ttk.Label(settings_frame, text="💡 设置递归调用限制。设置过高的值可能导致内存问题。", 
                  font=("Arial", 8), foreground="gray").pack(anchor=tk.W, pady=(0, 10))
+        
+        # 流式返回设置
+        streaming_frame = ttk.Frame(settings_frame)
+        streaming_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        streaming_checkbox = ttk.Checkbutton(streaming_frame, text="流式返回", 
+                                            variable=self.streaming_enabled)
+        streaming_checkbox.pack(side=tk.LEFT)
+        
+        ttk.Label(streaming_frame, text="💡 启用流式返回以实时查看代理的思考过程。", 
+                 font=("Arial", 8), foreground="gray").pack(side=tk.LEFT, padx=(5, 0))
         
         # 工具配置按钮
         ttk.Button(settings_frame, text="🔧 配置工具", 
@@ -584,6 +596,16 @@ class MCPAgentApp:
         # 显示用户消息
         self.append_to_chat("用户", message, "user")
         
+        # 根据流式设置选择处理方式
+        if self.streaming_enabled.get():
+            # 流式处理模式
+            self._send_message_streaming(message)
+        else:
+            # 普通处理模式
+            self._send_message_normal(message)
+    
+    def _send_message_streaming(self, message: str):
+        """流式处理消息"""
         # 清理之前的流式状态
         if hasattr(self, '_current_tool_message_start'):
             delattr(self, '_current_tool_message_start')
@@ -598,6 +620,41 @@ class MCPAgentApp:
                 # 使用 run_coroutine_threadsafe 在事件循环中运行协程
                 future = asyncio.run_coroutine_threadsafe(
                     self.process_query_async(message), self.loop
+                )
+                resp, final_text, final_tool = future.result(timeout=self.timeout_seconds.get())
+                
+                if "error" in resp:
+                    # 替换思考占位符为错误消息
+                    self.root.after(0, lambda: self.replace_last_assistant_message(resp["error"]))
+                else:
+                    # 替换思考占位符为最终内容
+                    if final_text:
+                        self.root.after(0, lambda: self.replace_last_assistant_message(final_text))
+                    if final_tool:
+                        self.root.after(0, lambda: self.append_to_chat("工具", final_tool, "tool"))
+                
+            except asyncio.TimeoutError:
+                error_msg = f"❌ 查询超时（超过 {self.timeout_seconds.get()} 秒）"
+                self.root.after(0, lambda: self.replace_last_assistant_message(error_msg))
+            except Exception as e:
+                error_msg = f"❌ 处理异常: {str(e)}"
+                logger.error(f"{error_msg}\n{traceback.format_exc()}")
+                self.root.after(0, lambda: self.replace_last_assistant_message(error_msg))
+        
+        # 在后台线程中运行处理
+        threading.Thread(target=process_async, daemon=True).start()
+    
+    def _send_message_normal(self, message: str):
+        """普通处理消息"""
+        # 显示思考占位符
+        self.append_to_chat("助手", "🤔 正在思考...", "assistant")
+        
+        # 处理查询
+        def process_async():
+            try:
+                # 使用普通查询处理方法
+                future = asyncio.run_coroutine_threadsafe(
+                    self.process_query_normal_async(message), self.loop
                 )
                 resp, final_text, final_tool = future.result(timeout=self.timeout_seconds.get())
                 
@@ -678,6 +735,109 @@ class MCPAgentApp:
                 final_text = "".join(accumulated_text_obj)
                 final_tool = "".join(accumulated_tool_obj)
                 return response, final_text, final_tool
+            else:
+                error_msg = "🚫 代理尚未初始化。"
+                return {"error": error_msg}, error_msg, ""
+        except Exception as e:
+            import traceback
+            error_msg = f"❌ 发生错误：{str(e)}\n{traceback.format_exc()}"
+            logger.error(error_msg)
+            return {"error": error_msg}, error_msg, ""
+    
+    async def process_query_normal_async(self, query: str):
+        """异步处理用户查询 - 普通返回模式（非流式）"""
+        try:
+            if self.agent:
+                # 准备输入消息用于日志记录
+                input_messages = [{"role": "user", "content": query}]
+                
+                # 使用保存的模型信息
+                model_name = self.current_model_name or "unknown"
+                model_provider = self.current_model_provider or "unknown"
+                
+                # 记录开始时间
+                start_time = time.time()
+                
+                try:
+                    # 使用普通调用（非流式）
+                    response = await asyncio.wait_for(
+                        self.agent.ainvoke(
+                            {"messages": [HumanMessage(content=query)]},
+                            config=RunnableConfig(
+                                recursion_limit=self.recursion_limit.get(),
+                                thread_id=self.thread_id,
+                            ),
+                        ),
+                        timeout=self.timeout_seconds.get(),
+                    )
+                    
+                    # 处理响应
+                    final_text = ""
+                    final_tool = ""
+                    
+                    if "messages" in response:
+                        for msg in response["messages"]:
+                            if hasattr(msg, 'content'):
+                                if isinstance(msg.content, str):
+                                    final_text += msg.content
+                                elif isinstance(msg.content, list):
+                                    for content_part in msg.content:
+                                        if isinstance(content_part, dict):
+                                            if 'text' in content_part:
+                                                final_text += content_part['text']
+                                            elif 'content' in content_part:
+                                                final_text += str(content_part['content'])
+                            
+                            # 处理工具调用信息
+                            if hasattr(msg, 'additional_kwargs') and 'tool_calls' in msg.additional_kwargs:
+                                for tool_call in msg.additional_kwargs['tool_calls']:
+                                    final_tool += f"🔧 工具调用: {tool_call.get('function', {}).get('name', 'Unknown')}\n"
+                                    final_tool += f"参数: {tool_call.get('function', {}).get('arguments', '')}\n\n"
+                    
+                    # 记录模型调用
+                    end_time = time.time()
+                    duration = end_time - start_time
+                    
+                    # 创建简化的日志记录
+                    log_record = {
+                        'session_id': self.session_id,
+                        'thread_id': self.thread_id,
+                        'model_name': model_name,
+                        'model_provider': model_provider,
+                        'input_messages': input_messages,
+                        'output_content': final_text,
+                        'tool_calls': [],
+                        'tool_responses': [],
+                        'duration': duration,
+                        'timestamp': datetime.now().isoformat(),
+                        'error': None
+                    }
+                    
+                    self.model_logger.log_model_call(log_record)
+                    
+                    return response, final_text, final_tool
+                    
+                except asyncio.TimeoutError:
+                    error_msg = f"⏱️ 请求时间超过 {self.timeout_seconds.get()} 秒。请稍候再试。"
+                    
+                    # 记录超时错误
+                    log_record = {
+                        'session_id': self.session_id,
+                        'thread_id': self.thread_id,
+                        'model_name': model_name,
+                        'model_provider': model_provider,
+                        'input_messages': input_messages,
+                        'output_content': "",
+                        'tool_calls': [],
+                        'tool_responses': [],
+                        'duration': self.timeout_seconds.get(),
+                        'timestamp': datetime.now().isoformat(),
+                        'error': error_msg
+                    }
+                    
+                    self.model_logger.log_model_call(log_record)
+                    
+                    return {"error": error_msg}, error_msg, ""
             else:
                 error_msg = "🚫 代理尚未初始化。"
                 return {"error": error_msg}, error_msg, ""
