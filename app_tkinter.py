@@ -56,8 +56,114 @@ load_dotenv(override=True)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-from my_constants import *
-from my_dialogs import ToolConfigWindow, AddToolDialog
+# 系统提示信息
+SYSTEM_PROMPT = """<ROLE>
+你是一位智能代理，能够使用工具来回答问题。
+你将被给予一个问题，并使用工具来回答。
+选择最相关的工具来回答问题。
+如果你无法回答问题，请尝试使用不同的工具来获取上下文。
+你的答案应该非常礼貌和专业。
+</ROLE>
+
+----
+
+<INSTRUCTIONS>
+步骤 1：分析问题
+- 分析用户的问题和最终目标。
+- 如果用户的问题包含多个子问题，请将它们分解为较小的子问题。
+
+步骤 2：选择最相关的工具
+- 选择最相关的工具来回答问题。
+- 如果你无法回答问题，请尝试使用不同的工具来获取上下文。
+
+步骤 3：回答问题
+- 用相同的语言回答问题。
+- 你的答案应该非常礼貌和专业。
+
+步骤 4：提供答案来源（如果适用）
+- 如果你使用了工具，请提供答案来源。
+- 有效来源是网站（URL）或文档（PDF 等）。
+
+指南：
+- 如果你使用了工具，你的答案应该基于工具的输出（工具的输出比你自己的知识更重要）。
+- 如果你使用了工具，并且来源是有效的 URL，请提供答案来源（URL）。
+- 如果来源不是 URL，请跳过提供来源。
+- 用相同的语言回答问题。
+- 答案应该简洁明了。
+- 避免在输出中包含除答案和来源以外的任何信息。
+</INSTRUCTIONS>
+
+----
+
+<OUTPUT_FORMAT>
+(简洁的答案)
+
+**来源**（如果适用）
+- (来源 1：有效 URL)
+- (来源 2：有效 URL)
+- ...
+</OUTPUT_FORMAT>
+"""
+
+# 模型输出令牌限制信息
+OUTPUT_TOKEN_INFO = {
+    "claude-3-5-sonnet-latest": {"max_tokens": 8192},
+    "claude-3-5-haiku-latest": {"max_tokens": 8192},
+    "claude-3-7-sonnet-latest": {"max_tokens": 64000},
+    "gpt-4o": {"max_tokens": 16000},
+    "gpt-4o-mini": {"max_tokens": 16000},
+    "qwen-plus-latest": {"max_tokens": 16000},
+}
+
+# 系统提示模板
+SYSTEM_INFO = """<ROLE>
+你是一位智能代理，能够使用工具来回答问题。
+你将被给予一个问题，并使用工具来回答。
+选择最相关的工具来回答问题。
+如果你无法回答问题，请尝试使用不同的工具来获取上下文。
+你的答案应该非常礼貌和专业。
+</ROLE>
+
+----
+
+<INSTRUCTIONS>
+步骤 1：分析问题
+- 分析用户的问题和最终目标。
+- 如果用户的问题包含多个子问题，请将它们分解为较小的子问题。
+
+步骤 2：选择最相关的工具
+- 选择最相关的工具来回答问题。
+- 如果你无法回答问题，请尝试使用不同的工具来获取上下文。
+
+步骤 3：回答问题
+- 用相同的语言回答问题。
+- 你的答案应该非常礼貌和专业。
+
+步骤 4：提供答案来源（如果适用）
+- 如果你使用了工具，请提供答案来源。
+- 有效来源是网站（URL）或文档（PDF 等）。
+
+指南：
+- 如果你使用了工具，你的答案应该基于工具的输出（工具的输出比你自己的知识更重要）。
+- 如果你使用了工具，并且来源是有效的 URL，请提供答案来源（URL）。
+- 如果来源不是 URL，请跳过提供来源。
+- 用相同的语言回答问题。
+- 答案应该简洁明了。
+- 避免在输出中包含除答案和来源以外的任何信息。
+</INSTRUCTIONS>
+
+----
+
+<OUTPUT_FORMAT>
+(简洁的答案)
+
+**来源**（如果适用）
+- (来源 1：有效 URL)
+- (来源 2：有效 URL)
+- ...
+</OUTPUT_FORMAT>
+"""
+
 
 class MCPAgentApp:
     """MCP Agent Tkinter 桌面应用主类"""
@@ -66,9 +172,6 @@ class MCPAgentApp:
         self.root = tk.Tk()
         self.root.title("MCP 工具智能代理")
         self.root.geometry("1200x800")
-        
-        # 居中窗口显示（处理屏幕边界）
-        self.center_window(self.root)
         
         # 初始化模型日志记录
         self.model_logger = init_model_logging("logs")
@@ -601,6 +704,9 @@ class MCPAgentApp:
                 logger.error(f"{error_msg}\n{traceback.format_exc()}")
                 self.root.after(0, lambda: self.append_to_chat("助手", error_msg, "error"))
     
+        # 在后台线程中运行处理
+        threading.Thread(target=process_async, daemon=True).start()
+    
     async def process_query_async(self, query: str):
         """异步处理用户查询，与 app.py 的 process_query 函数逻辑一致"""
         try:
@@ -1132,8 +1238,6 @@ class MCPAgentApp:
     
     def run(self):
         """运行应用"""
-        # 确保窗口显示在合适位置
-        self.center_window(self.root)
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.root.mainloop()
     
@@ -1149,9 +1253,6 @@ class MCPAgentApp:
         stats_window.title("📊 模型调用日志统计")
         stats_window.geometry("800x600")
         stats_window.transient(self.root)
-        
-        # 相对于主窗口居中显示
-        self.center_child_window(self.root, stats_window)
         
         # 创建文本框显示统计信息
         text_frame = ttk.Frame(stats_window, padding=10)
@@ -1215,73 +1316,175 @@ class MCPAgentApp:
         # 关闭按钮
         ttk.Button(button_frame, text="❌ 关闭", command=stats_window.destroy).pack(side=tk.RIGHT)
 
-    @staticmethod
-    def center_window(window):
-        """将窗口居中显示在屏幕上
-        
-        Args:
-            window: 要居中的窗口
-        """
-        # 先刷新以确保获取正确的窗口尺寸
-        window.update_idletasks()
-        
-        # 获取窗口尺寸
-        window_width = window.winfo_reqwidth()
-        window_height = window.winfo_reqheight()
-        
-        # 获取屏幕尺寸
-        screen_width = window.winfo_screenwidth()
-        screen_height = window.winfo_screenheight()
-        
-        # 计算居中位置
-        x = max(0, (screen_width - window_width) // 2)
-        y = max(0, (screen_height - window_height) // 2)
-        
-        # 设置窗口位置
-        window.geometry(f"+{x}+{y}")
 
-    @staticmethod
-    def center_child_window(parent_window, child_window):
-        """将子窗口相对于父窗口居中显示
+class ToolConfigWindow:
+    """工具配置窗口"""
+    
+    def __init__(self, parent_app):
+        self.parent_app = parent_app
+        self.window = tk.Toplevel(parent_app.root)
+        self.window.title("🔧 工具配置")
+        self.window.geometry("800x600")
+        self.window.transient(parent_app.root)
+        self.window.grab_set()
         
-        Args:
-            parent_window: 父窗口
-            child_window: 要居中的子窗口
-        """
-        # 先刷新以确保获取正确的窗口尺寸
-        child_window.update_idletasks()
+        self.create_widgets()
+        self.load_current_config()
+    
+    def create_widgets(self):
+        """创建配置窗口组件"""
+        # 主框架
+        main_frame = ttk.Frame(self.window, padding=10)
+        main_frame.pack(fill=tk.BOTH, expand=True)
         
-        # 获取父窗口信息
-        parent_x = parent_window.winfo_rootx()
-        parent_y = parent_window.winfo_rooty()
-        parent_width = parent_window.winfo_width()
-        parent_height = parent_window.winfo_height()
+        # 工具列表
+        list_frame = ttk.LabelFrame(main_frame, text="已配置工具", padding=5)
+        list_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
         
-        # 获取子窗口尺寸
-        child_width = child_window.winfo_reqwidth()
-        child_height = child_window.winfo_reqheight()
+        # 创建树形视图显示工具
+        self.tool_tree = ttk.Treeview(list_frame, columns=("transport", "command"), show="tree headings")
+        self.tool_tree.heading("#0", text="工具名称")
+        self.tool_tree.heading("transport", text="传输方式")
+        self.tool_tree.heading("command", text="命令")
+        self.tool_tree.pack(fill=tk.BOTH, expand=True)
         
-        # 获取屏幕尺寸
-        screen_width = parent_window.winfo_screenwidth()
-        screen_height = parent_window.winfo_screenheight()
+        # 按钮框架
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(fill=tk.X)
         
-        # 计算子窗口居中位置
-        x = parent_x + (parent_width - child_width) // 2
-        y = parent_y + (parent_height - child_height) // 2
+        ttk.Button(button_frame, text="➕ 添加工具", command=self.add_tool).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(button_frame, text="❌ 删除工具", command=self.delete_tool).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(button_frame, text="📄 导入配置", command=self.import_config).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(button_frame, text="💾 保存", command=self.save_config).pack(side=tk.RIGHT, padx=(5, 0))
+        ttk.Button(button_frame, text="❌ 取消", command=self.window.destroy).pack(side=tk.RIGHT)
+    
+    def load_current_config(self):
+        """加载当前配置到界面"""
+        for item in self.tool_tree.get_children():
+            self.tool_tree.delete(item)
         
-        # 确保窗口不会超出屏幕边界
-        if x < 0:
-            x = 0
-        if y < 0:
-            y = 0
-        if x + child_width > screen_width:
-            x = max(0, screen_width - child_width)
-        if y + child_height > screen_height:
-            y = max(0, screen_height - child_height)
+        for tool_name, config in self.parent_app.mcp_config.items():
+            transport = config.get("transport", "stdio")
+            command = config.get("command", config.get("url", ""))
+            self.tool_tree.insert("", tk.END, text=tool_name, values=(transport, command))
+    
+    def add_tool(self):
+        """添加新工具"""
+        AddToolDialog(self)
+    
+    def delete_tool(self):
+        """删除选中的工具"""
+        selection = self.tool_tree.selection()
+        if not selection:
+            messagebox.showwarning("警告", "请先选择要删除的工具")
+            return
         
-        # 设置子窗口位置
-        child_window.geometry(f"+{x}+{y}")
+        item = selection[0]
+        tool_name = self.tool_tree.item(item, "text")
+        
+        if messagebox.askyesno("确认", f"确定要删除工具 '{tool_name}' 吗？"):
+            if tool_name in self.parent_app.mcp_config:
+                del self.parent_app.mcp_config[tool_name]
+            self.tool_tree.delete(item)
+    
+    def import_config(self):
+        """导入配置文件"""
+        file_path = filedialog.askopenfilename(
+            title="选择配置文件",
+            filetypes=[("JSON文件", "*.json"), ("所有文件", "*.*")]
+        )
+        
+        if file_path:
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                
+                # 合并配置
+                self.parent_app.mcp_config.update(config)
+                self.load_current_config()
+                messagebox.showinfo("成功", "配置导入成功")
+            except Exception as e:
+                messagebox.showerror("错误", f"导入失败: {str(e)}")
+    
+    def save_config(self):
+        """保存配置"""
+        if self.parent_app.save_config():
+            messagebox.showinfo("成功", "配置保存成功")
+            self.window.destroy()
+        else:
+            messagebox.showerror("错误", "保存失败")
 
+
+class AddToolDialog:
+    """添加工具对话框"""
+    
+    def __init__(self, parent_window):
+        self.parent_window = parent_window
+        self.dialog = tk.Toplevel(parent_window.window)
+        self.dialog.title("添加工具")
+        self.dialog.geometry("600x400")
+        self.dialog.transient(parent_window.window)
+        self.dialog.grab_set()
+        
+        self.create_widgets()
+    
+    def create_widgets(self):
+        """创建对话框组件"""
+        main_frame = ttk.Frame(self.dialog, padding=10)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 工具名称
+        ttk.Label(main_frame, text="工具名称:").pack(anchor=tk.W)
+        self.name_entry = ttk.Entry(main_frame)
+        self.name_entry.pack(fill=tk.X, pady=(0, 10))
+        
+        # JSON 配置
+        ttk.Label(main_frame, text="JSON 配置:").pack(anchor=tk.W)
+        self.json_text = scrolledtext.ScrolledText(main_frame, height=15)
+        self.json_text.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+        
+        # 示例配置
+        example = {
+            "command": "python",
+            "args": ["script.py"],
+            "transport": "stdio"
+        }
+        self.json_text.insert(tk.END, json.dumps(example, indent=2, ensure_ascii=False))
+        
+        # 按钮
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(fill=tk.X)
+        
+        ttk.Button(button_frame, text="✅ 添加", command=self.add_tool).pack(side=tk.RIGHT, padx=(5, 0))
+        ttk.Button(button_frame, text="❌ 取消", command=self.dialog.destroy).pack(side=tk.RIGHT)
+    
+    def add_tool(self):
+        """添加工具到配置"""
+        tool_name = self.name_entry.get().strip()
+        if not tool_name:
+            messagebox.showwarning("警告", "请输入工具名称")
+            return
+        
+        try:
+            config_text = self.json_text.get(1.0, tk.END).strip()
+            config = json.loads(config_text)
+            
+            # 验证配置
+            if "command" not in config and "url" not in config:
+                messagebox.showerror("错误", "配置必须包含 'command' 或 'url' 字段")
+                return
+            
+            # 添加到父应用配置
+            self.parent_window.parent_app.mcp_config[tool_name] = config
+            self.parent_window.load_current_config()
+            
+            messagebox.showinfo("成功", f"工具 '{tool_name}' 添加成功")
+            self.dialog.destroy()
+            
+        except json.JSONDecodeError as e:
+            messagebox.showerror("错误", f"JSON 格式错误: {str(e)}")
+        except Exception as e:
+            messagebox.showerror("错误", f"添加失败: {str(e)}")
 
 
 def main():
