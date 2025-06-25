@@ -1,6 +1,6 @@
 "config.json" 3aed1f47de828fc3465486f813310d6d 310
-"gitbigfilex.json" 51e122fec305004d83e3318fd2938198 195879
-"gitbigfilex_dense.zip" 749757a2be2988b04cfd8021406d7dcd 19517831
+"gitbigfilex.json" 328c2da4348180985d1d027e064360be 194625
+"gitbigfilex_dense.zip" 24877f9ad1db05a340b38bde88e6fc75 17887724
 "GraphAgentDesktop.exe" 6f148cd6322eeee05db4d69220d1a0d0 609280
 "GraphAgentDesktop.zip" 11dbc40efacb5507eb02e2240f1fa1bb 28129441
 "GraphAgentDesktop\_internal\_asyncio.pyd" 33d0b6de555ddbbbd5ca229bfa91c329 65304
@@ -941,11 +941,6 @@
 "GraphAgentDesktop\_internal\aiohttp\_http_writer.cp310-win_amd64.pyd" 610cd1b4019dadf432ea5f7258d778e0 45568
 "GraphAgentDesktop\_internal\aiohttp\_websocket\mask.cp310-win_amd64.pyd" 08e02393ca28fc77fcf62511b481d6f0 35328
 "GraphAgentDesktop\_internal\aiohttp\_websocket\reader_c.cp310-win_amd64.pyd" 5b0a5c1d172e612c8c598edd3c0a9412 145920
-"GraphAgentDesktop\_internal\altair\jupyter\js\index.js" 8d550cf182d6523d4b5beb59dc1d1ab0 7936
-"GraphAgentDesktop\_internal\altair\jupyter\js\README.md" b2513d217840f72ff87fbedf209d4bbe 172
-"GraphAgentDesktop\_internal\altair\py.typed" d41d8cd98f00b204e9800998ecf8427e 0
-"GraphAgentDesktop\_internal\altair\vegalite\v5\schema\vega-lite-schema.json" bbf04be811cd9395d3624c36e6c51079 1847283
-"GraphAgentDesktop\_internal\altair\vegalite\v5\schema\vega-themes.json" 62ea3d19c2f599bcf01bb0fe4230c7ec 25729
 "GraphAgentDesktop\_internal\api-ms-win-core-console-l1-1-0.dll" 7699c096202da0db6b07fafc914d60ed 19864
 "GraphAgentDesktop\_internal\api-ms-win-core-datetime-l1-1-0.dll" 928be2a3fc2e88bda5ca0808324e97c4 19352
 "GraphAgentDesktop\_internal\api-ms-win-core-debug-l1-1-0.dll" 4cb14835b061f42179d5251e744fd667 19352
@@ -1215,7 +1210,6 @@
 "GraphAgentDesktop\_internal\opentelemetry_sdk-1.34.1.dist-info\WHEEL" e2fcb0ad9ea59332c808928b4b439e7a 87
 "GraphAgentDesktop\_internal\orjson\orjson.cp310-win_amd64.pyd" 72da631da6ad9a5ac0a6ffc4bba6c2d5 237568
 "GraphAgentDesktop\_internal\ormsgpack\ormsgpack.cp310-win_amd64.pyd" c94c5a1129003af4052583ea8b3b17d5 206848
-"GraphAgentDesktop\_internal\pandas.libs\msvcp140-1a0962f2a91a74c6d7136a768987a591.dll" 72f3d84384e888bf0d38852eb863026b 575056
 "GraphAgentDesktop\_internal\parso\py.typed" d41d8cd98f00b204e9800998ecf8427e 0
 "GraphAgentDesktop\_internal\parso\python\grammar310.txt" 663bd8e6c3008a6849caeb04b084aed8 7511
 "GraphAgentDesktop\_internal\parso\python\grammar311.txt" 663bd8e6c3008a6849caeb04b084aed8 7511
@@ -1231,12 +1225,6 @@
 "GraphAgentDesktop\_internal\pdfminer_six-20250506.dist-info\RECORD" bad560ab78b0dcc92a02cc3b161e4f26 18894
 "GraphAgentDesktop\_internal\pdfminer_six-20250506.dist-info\top_level.txt" 83087c7089ff71b98065f843dfbad198 9
 "GraphAgentDesktop\_internal\pdfminer_six-20250506.dist-info\WHEEL" 247b432e7b64e56273a8978fd6cf45b6 91
-"GraphAgentDesktop\_internal\PIL\_imaging.cp310-win_amd64.pyd" 5fab9a3e81e1405831dd255ea80134c0 2490880
-"GraphAgentDesktop\_internal\PIL\_imagingcms.cp310-win_amd64.pyd" 64bbba16b94ed259e98ef413529363e1 265728
-"GraphAgentDesktop\_internal\PIL\_imagingft.cp310-win_amd64.pyd" 5ed9e87373c8809cb9716534b8ca34db 2000896
-"GraphAgentDesktop\_internal\PIL\_imagingmath.cp310-win_amd64.pyd" 21ded463c58c9ec2aeb1853c27a90d4b 25088
-"GraphAgentDesktop\_internal\PIL\_imagingtk.cp310-win_amd64.pyd" 566e4879b95446bbe8246ff2d156f9ce 15360
-"GraphAgentDesktop\_internal\PIL\_webp.cp310-win_amd64.pyd" b89865a3514a2c4139d6678e3bbdad2c 410112
 "GraphAgentDesktop\_internal\prompt_toolkit-3.0.51.dist-info\INSTALLER" 365c9bfeb7d89244f2ce01c1de44cb85 4
 "GraphAgentDesktop\_internal\prompt_toolkit-3.0.51.dist-info\licenses\AUTHORS.rst" 1b2889ea12a6c97711a4ee6913daa074 148
 "GraphAgentDesktop\_internal\prompt_toolkit-3.0.51.dist-info\licenses\LICENSE" b2cde7da89f0c1f3e49bf968d00d554f 1493
@@ -1252,7 +1240,6 @@
 "GraphAgentDesktop\_internal\psycopg-3.2.9.dist-info\RECORD" 59bcd14b698f0cdea29532f532210724 11020
 "GraphAgentDesktop\_internal\psycopg-3.2.9.dist-info\top_level.txt" 01e1ec0a48ed9ecd52287b9fd8e4f52a 8
 "GraphAgentDesktop\_internal\psycopg-3.2.9.dist-info\WHEEL" c6f0786d0e70c7f356c7f4d292ae1907 91
-"GraphAgentDesktop\_internal\pyarrow.libs\msvcp140-a118642f3ae8774fb9dc223e15c4a52e.dll" 46c051ec51c5913e5060f81e271839a8 576128
 "GraphAgentDesktop\_internal\pydantic_core\_pydantic_core.cp310-win_amd64.pyd" ab74989a8880f3749a17c7e40076f4d0 5302272
 "GraphAgentDesktop\_internal\pyexpat.pyd" 1118c1329f82ce9072d908cbd87e197c 198936
 "GraphAgentDesktop\_internal\pyreadline3-3.5.4.dist-info\INSTALLER" 365c9bfeb7d89244f2ce01c1de44cb85 4
@@ -1893,12 +1880,6 @@
 "GraphAgentDesktop\_internal\setuptools-65.5.0.dist-info\REQUESTED" d41d8cd98f00b204e9800998ecf8427e 0
 "GraphAgentDesktop\_internal\setuptools-65.5.0.dist-info\top_level.txt" 789a691c859dea4bb010d18728bad148 41
 "GraphAgentDesktop\_internal\setuptools-65.5.0.dist-info\WHEEL" 4d57030133e279ceb6a8236264823dfd 92
-"GraphAgentDesktop\_internal\Shapely.libs\geos-a5c01bdebd805679c9540218609cd4b8.dll" 755d82363b50f2948ca7061702f4c893 2540032
-"GraphAgentDesktop\_internal\Shapely.libs\geos_c-f79418bf8e5cda2d1933e2121ee44e49.dll" 55ff0e9f4f1421ffe977edf079154317 455168
-"GraphAgentDesktop\_internal\Shapely.libs\msvcp140-8a79f4687fc453279df1092923244d9e.dll" 4b9092f22046450c17d3bbf87d7219c2 567368
-"GraphAgentDesktop\_internal\shapely\_geometry_helpers.cp310-win_amd64.pyd" 4e2b4b6efdfe2bfdfee3da80983fdd09 220672
-"GraphAgentDesktop\_internal\shapely\_geos.cp310-win_amd64.pyd" 3c965b9f1aeb000e42229ea22d053dd8 44544
-"GraphAgentDesktop\_internal\shapely\lib.cp310-win_amd64.pyd" c256f3bb0929958949d61c3f8e330c2a 154112
 "GraphAgentDesktop\_internal\sqlalchemy\cyextension\collections.cp310-win_amd64.pyd" a1f8090af14f41b1670ff6ac24f10c32 162304
 "GraphAgentDesktop\_internal\sqlalchemy\cyextension\immutabledict.cp310-win_amd64.pyd" 7809f6fe8d1915b374082af34006f109 70144
 "GraphAgentDesktop\_internal\sqlalchemy\cyextension\processors.cp310-win_amd64.pyd" c219431ef340205b9cf4260a8bcb8a46 57856
