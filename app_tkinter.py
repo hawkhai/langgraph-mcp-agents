@@ -46,6 +46,9 @@ from langchain_core.messages.ai import AIMessageChunk
 from langchain_core.messages.tool import ToolMessage
 from dotenv import load_dotenv
 
+# 导入模型日志记录模块
+from model_logger import get_model_logger, ModelCallTracker, init_model_logging
+
 # 加载环境变量（从 .env 文件获取 API 密钥和设置）
 load_dotenv(override=True)
 
@@ -170,6 +173,14 @@ class MCPAgentApp:
         self.root.title("MCP 工具智能代理")
         self.root.geometry("1200x800")
         
+        # 初始化模型日志记录
+        self.model_logger = init_model_logging("logs")
+        self.model_tracker = ModelCallTracker("logs")
+        
+        # 生成会话ID
+        import uuid
+        self.session_id = str(uuid.uuid4())[:8]
+        
         # 应用状态
         self.session_initialized = False
         self.agent = None
@@ -177,6 +188,8 @@ class MCPAgentApp:
         self.conversation_history = []
         self.thread_id = random_uuid()  # 使用与 app.py 相同的方式
         self.tool_count = 0  # 初始化工具数量
+        self.current_model_name = None  # 保存当前使用的模型名称
+        self.current_model_provider = None  # 保存当前模型提供商
         
         # 配置变量
         self.selected_model = tk.StringVar(value="qwen-plus-latest")
@@ -304,6 +317,10 @@ class MCPAgentApp:
         # 重置对话按钮
         ttk.Button(settings_frame, text="🔄 重置对话", 
                   command=self.reset_conversation).pack(fill=tk.X, pady=5)
+        
+        # 日志统计按钮
+        ttk.Button(settings_frame, text="📊 查看调用日志", 
+                  command=self.show_log_stats).pack(fill=tk.X, pady=5)
         
         # 系统信息
         info_frame = ttk.LabelFrame(settings_frame, text="📊 系统信息", padding=5)
@@ -439,6 +456,15 @@ class MCPAgentApp:
             # 创建 Agent
             model_name = self.selected_model.get()
             
+            # 保存当前模型信息
+            self.current_model_name = model_name
+            if model_name in ["claude-3-7-sonnet-latest", "claude-3-5-sonnet-latest", "claude-3-5-haiku-latest"]:
+                self.current_model_provider = "anthropic"
+            elif model_name in ["qwen-plus-latest"]:
+                self.current_model_provider = "alibaba"
+            else:
+                self.current_model_provider = "openai"
+            
             # 根据模型创建不同的 LLM
             if model_name in [
                 "claude-3-7-sonnet-latest",
@@ -534,7 +560,7 @@ class MCPAgentApp:
         
         # 显示思考占位符
         self.append_to_chat("助手", "🤔 正在思考...", "assistant")
-        self._current_assistant_message_start = self.chat_history.index("end-2l linestart")
+        self._current_assistant_message_start = self.chat_history.index("end-2l")
         
         # 处理查询
         def process_async():
@@ -570,8 +596,25 @@ class MCPAgentApp:
         """异步处理用户查询，与 app.py 的 process_query 函数逻辑一致"""
         try:
             if self.agent:
+                # 准备输入消息用于日志记录
+                input_messages = [{"role": "user", "content": query}]
+                
+                # 使用保存的模型信息
+                model_name = self.current_model_name or "unknown"
+                model_provider = self.current_model_provider or "unknown"
+                
                 # 获取流式回调
                 streaming_callback, accumulated_text_obj, accumulated_tool_obj = self.get_streaming_callback()
+                
+                # 创建带监控的流式回调
+                monitored_callback, get_final_record = self.model_logger.create_streaming_wrapper(
+                    session_id=self.session_id,
+                    thread_id=self.thread_id,
+                    model_name=model_name,
+                    model_provider=model_provider,
+                    input_messages=input_messages,
+                    original_callback=streaming_callback
+                )
                 
                 try:
                     # 使用 asyncio.wait_for 进行超时控制
@@ -579,7 +622,7 @@ class MCPAgentApp:
                         astream_graph(
                             self.agent,
                             {"messages": [HumanMessage(content=query)]},
-                            callback=streaming_callback,
+                            callback=monitored_callback,  # 使用监控回调
                             config=RunnableConfig(
                                 recursion_limit=self.recursion_limit.get(),
                                 thread_id=self.thread_id,
@@ -587,8 +630,19 @@ class MCPAgentApp:
                         ),
                         timeout=self.timeout_seconds.get(),
                     )
+                    
+                    # 记录最终的调用日志
+                    final_record = get_final_record()
+                    self.model_logger.log_model_call(final_record)
+                    
                 except asyncio.TimeoutError:
                     error_msg = f"⏱️ 请求时间超过 {self.timeout_seconds.get()} 秒。请稍候再试。"
+                    
+                    # 记录超时错误
+                    final_record = get_final_record()
+                    final_record.error = error_msg
+                    self.model_logger.log_model_call(final_record)
+                    
                     return {"error": error_msg}, error_msg, ""
                 
                 final_text = "".join(accumulated_text_obj)
@@ -765,6 +819,75 @@ class MCPAgentApp:
         if self.loop and self.loop.is_running():
             self.loop.call_soon_threadsafe(self.loop.stop)
         self.root.destroy()
+    
+    def show_log_stats(self):
+        """显示日志统计信息窗口"""
+        stats_window = tk.Toplevel(self.root)
+        stats_window.title("📊 模型调用日志统计")
+        stats_window.geometry("800x600")
+        stats_window.transient(self.root)
+        
+        # 创建文本框显示统计信息
+        text_frame = ttk.Frame(stats_window, padding=10)
+        text_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 滚动文本框
+        stats_text = scrolledtext.ScrolledText(text_frame, wrap=tk.WORD)
+        stats_text.pack(fill=tk.BOTH, expand=True)
+        
+        # 获取并显示统计信息
+        try:
+            stats_summary = self.model_tracker.get_stats_summary()
+            stats_text.insert(tk.END, stats_summary)
+            
+            # 添加日志文件路径信息
+            stats_text.insert(tk.END, f"\n\n📁 日志文件位置:\n")
+            stats_text.insert(tk.END, f"  {os.path.abspath('logs')}\n")
+            stats_text.insert(tk.END, f"\n💡 提示: 日志以JSON Lines格式存储，每行一条记录")
+            
+        except Exception as e:
+            stats_text.insert(tk.END, f"❌ 获取统计信息失败: {str(e)}")
+        
+        # 配置文本框为只读
+        stats_text.config(state=tk.DISABLED)
+        
+        # 按钮框架
+        button_frame = ttk.Frame(stats_window, padding=10)
+        button_frame.pack(fill=tk.X)
+        
+        # 刷新按钮
+        def refresh_stats():
+            stats_text.config(state=tk.NORMAL)
+            stats_text.delete(1.0, tk.END)
+            try:
+                stats_summary = self.model_tracker.get_stats_summary()
+                stats_text.insert(tk.END, stats_summary)
+                stats_text.insert(tk.END, f"\n\n📁 日志文件位置:\n")
+                stats_text.insert(tk.END, f"  {os.path.abspath('logs')}\n")
+                stats_text.insert(tk.END, f"\n💡 提示: 日志以JSON Lines格式存储，每行一条记录")
+            except Exception as e:
+                stats_text.insert(tk.END, f"❌ 获取统计信息失败: {str(e)}")
+            stats_text.config(state=tk.DISABLED)
+        
+        ttk.Button(button_frame, text="🔄 刷新", command=refresh_stats).pack(side=tk.LEFT, padx=(0, 5))
+        
+        # 打开日志文件夹按钮
+        def open_log_folder():
+            log_path = os.path.abspath("logs")
+            if os.path.exists(log_path):
+                if sys.platform.startswith('win'):
+                    os.startfile(log_path)
+                elif sys.platform.startswith('darwin'):  # macOS
+                    os.system(f'open "{log_path}"')
+                else:  # Linux
+                    os.system(f'xdg-open "{log_path}"')
+            else:
+                messagebox.showwarning("警告", "日志文件夹不存在")
+        
+        ttk.Button(button_frame, text="📁 打开日志文件夹", command=open_log_folder).pack(side=tk.LEFT, padx=(0, 5))
+        
+        # 关闭按钮
+        ttk.Button(button_frame, text="❌ 关闭", command=stats_window.destroy).pack(side=tk.RIGHT)
 
 
 class ToolConfigWindow:
