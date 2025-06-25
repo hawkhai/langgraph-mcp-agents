@@ -173,6 +173,9 @@ class MCPAgentApp:
         self.root.title("MCP 工具智能代理")
         self.root.geometry("1200x800")
         
+        # 居中窗口显示（处理屏幕边界）
+        self.center_window(self.root)
+        
         # 初始化模型日志记录
         self.model_logger = init_model_logging("logs")
         self.model_tracker = ModelCallTracker("logs")
@@ -703,9 +706,6 @@ class MCPAgentApp:
                 error_msg = f"❌ 处理异常: {str(e)}"
                 logger.error(f"{error_msg}\n{traceback.format_exc()}")
                 self.root.after(0, lambda: self.append_to_chat("助手", error_msg, "error"))
-    
-        # 在后台线程中运行处理
-        threading.Thread(target=process_async, daemon=True).start()
     
     async def process_query_async(self, query: str):
         """异步处理用户查询，与 app.py 的 process_query 函数逻辑一致"""
@@ -1238,6 +1238,8 @@ class MCPAgentApp:
     
     def run(self):
         """运行应用"""
+        # 确保窗口显示在合适位置
+        self.center_window(self.root)
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.root.mainloop()
     
@@ -1253,6 +1255,9 @@ class MCPAgentApp:
         stats_window.title("📊 模型调用日志统计")
         stats_window.geometry("800x600")
         stats_window.transient(self.root)
+        
+        # 相对于主窗口居中显示
+        self.center_child_window(self.root, stats_window)
         
         # 创建文本框显示统计信息
         text_frame = ttk.Frame(stats_window, padding=10)
@@ -1316,6 +1321,73 @@ class MCPAgentApp:
         # 关闭按钮
         ttk.Button(button_frame, text="❌ 关闭", command=stats_window.destroy).pack(side=tk.RIGHT)
 
+    @staticmethod
+    def center_window(window):
+        """将窗口居中显示在屏幕上
+        
+        Args:
+            window: 要居中的窗口
+        """
+        # 先刷新以确保获取正确的窗口尺寸
+        window.update_idletasks()
+        
+        # 获取窗口尺寸
+        window_width = window.winfo_reqwidth()
+        window_height = window.winfo_reqheight()
+        
+        # 获取屏幕尺寸
+        screen_width = window.winfo_screenwidth()
+        screen_height = window.winfo_screenheight()
+        
+        # 计算居中位置
+        x = max(0, (screen_width - window_width) // 2)
+        y = max(0, (screen_height - window_height) // 2)
+        
+        # 设置窗口位置
+        window.geometry(f"+{x}+{y}")
+
+    @staticmethod
+    def center_child_window(parent_window, child_window):
+        """将子窗口相对于父窗口居中显示
+        
+        Args:
+            parent_window: 父窗口
+            child_window: 要居中的子窗口
+        """
+        # 先刷新以确保获取正确的窗口尺寸
+        child_window.update_idletasks()
+        
+        # 获取父窗口信息
+        parent_x = parent_window.winfo_rootx()
+        parent_y = parent_window.winfo_rooty()
+        parent_width = parent_window.winfo_width()
+        parent_height = parent_window.winfo_height()
+        
+        # 获取子窗口尺寸
+        child_width = child_window.winfo_reqwidth()
+        child_height = child_window.winfo_reqheight()
+        
+        # 获取屏幕尺寸
+        screen_width = parent_window.winfo_screenwidth()
+        screen_height = parent_window.winfo_screenheight()
+        
+        # 计算子窗口居中位置
+        x = parent_x + (parent_width - child_width) // 2
+        y = parent_y + (parent_height - child_height) // 2
+        
+        # 确保窗口不会超出屏幕边界
+        if x < 0:
+            x = 0
+        if y < 0:
+            y = 0
+        if x + child_width > screen_width:
+            x = max(0, screen_width - child_width)
+        if y + child_height > screen_height:
+            y = max(0, screen_height - child_height)
+        
+        # 设置子窗口位置
+        child_window.geometry(f"+{x}+{y}")
+
 
 class ToolConfigWindow:
     """工具配置窗口"""
@@ -1327,6 +1399,9 @@ class ToolConfigWindow:
         self.window.geometry("800x600")
         self.window.transient(parent_app.root)
         self.window.grab_set()
+        
+        # 相对于主窗口居中显示
+        MCPAgentApp.center_child_window(parent_app.root, self.window)
         
         self.create_widgets()
         self.load_current_config()
@@ -1425,6 +1500,9 @@ class AddToolDialog:
         self.dialog.geometry("600x400")
         self.dialog.transient(parent_window.window)
         self.dialog.grab_set()
+        
+        # 相对于父窗口居中显示
+        MCPAgentApp.center_child_window(parent_window.window, self.dialog)
         
         self.create_widgets()
     
