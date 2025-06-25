@@ -166,6 +166,27 @@ SYSTEM_INFO = """<ROLE>
 
 from utils import run_agent_query_debug, run_agent_query
 
+funclib_curpcache = None
+def getCurrentProcess():
+    global funclib_curpcache
+    if funclib_curpcache:
+        return funclib_curpcache
+    import psutil
+    pid = os.getpid()
+    funclib_curpcache = psutil.Process(pid)
+    return funclib_curpcache
+
+def isPythonExe():
+    # PyInstaller
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        # sys._MEIPASS C:\Users\ADMIN\AppData\Local\Temp\_MEI161402
+        # sys.executable E:\kSource\dist\pdfcfgfilex.exe
+        return False
+    pyn = getCurrentProcess().name().lower()
+    return (pyn in ("python.exe", "python", "python3") or
+            re.findall("^python3[.][0-9]+$", pyn) # for MacOS
+        )
+
 class MCPAgentApp:
     """MCP Agent Tkinter 桌面应用主类"""
     
@@ -196,7 +217,7 @@ class MCPAgentApp:
         self.selected_model = tk.StringVar(value="qwen-plus-latest")
         self.timeout_seconds = tk.IntVar(value=120)  # 与 app.py 一致
         self.recursion_limit = tk.IntVar(value=100)  # 与 app.py 一致
-        self.streaming_enabled = tk.BooleanVar(value=False)  # 默认使用普通返回
+        self.streaming_enabled = tk.BooleanVar(value=True)  # 默认使用普通返回
         self.mcp_config = {}
         
         # 聊天历史存储
@@ -374,7 +395,9 @@ class MCPAgentApp:
             # 获取当前脚本所在目录，确保无论从哪里运行都能找到配置文件
             script_dir = Path(__file__).parent
             config_path = script_dir / "config.json"
-            
+            if not isPythonExe():
+                config_path = Path("config.json")
+                
             if config_path.exists():
                 with open(config_path, 'r', encoding='utf-8') as f:
                     self.mcp_config = json.load(f)
@@ -401,6 +424,8 @@ class MCPAgentApp:
             # 获取当前脚本所在目录，确保无论从哪里运行都能找到配置文件
             script_dir = Path(__file__).parent
             config_path = script_dir / "config.json"
+            if not isPythonExe():
+                config_path = Path("config.json")
             
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(self.mcp_config, f, indent=2, ensure_ascii=False)
