@@ -90,12 +90,6 @@ if "authenticated" not in st.session_state:
 # Main app uses wide layout
 st.set_page_config(page_title="Agent with MCP Tools", page_icon="🧠", layout="wide")
 
-# Add author information at the top of the sidebar (placed before other sidebar elements)
-st.sidebar.markdown("### ✍️ Made by [TeddyNote](https://youtube.com/c/teddynote) 🚀")
-st.sidebar.markdown(
-    "### 💻 [Project Page](https://github.com/teddynote-lab/langgraph-mcp-agents)"
-)
-
 st.sidebar.divider()  # Add divider
 
 # Existing page title and description
@@ -567,8 +561,6 @@ with st.sidebar:
         st.markdown(
             """
         Please insert **ONE tool** in JSON format.
-
-        [How to Set Up?](https://teddylee777.notion.site/MCP-Tool-Setup-Guide-English-1d324f35d1298030a831dfb56045906a)
 
         ⚠️ **Important**: JSON must be wrapped in curly braces (`{}`).
         """
