@@ -4,10 +4,57 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.graph.state import CompiledStateGraph
 import uuid
 
+import asyncio
+from langchain_core.messages import HumanMessage
 
 def random_uuid():
     return str(uuid.uuid4())
 
+async def run_agent_query(agent, query, recursion_limit, thread_id, timeout_seconds):
+    response = await asyncio.wait_for(
+        agent.ainvoke(
+            {"messages": [HumanMessage(content=query)]},
+            config=RunnableConfig(
+                recursion_limit=recursion_limit,
+                thread_id=thread_id,
+            ),
+        ),
+        timeout=timeout_seconds,
+    )
+    return response
+
+async def run_agent_query_debug(agent, query, recursion_limit, thread_id, timeout_seconds):
+    # Step 1: 构造消息
+    message = HumanMessage(content=query)
+    print("[DEBUG] HumanMessage:", message)
+
+    # Step 2: 构造配置
+    config = RunnableConfig(
+        recursion_limit=recursion_limit,
+        thread_id=thread_id,
+    )
+    print("[DEBUG] RunnableConfig:", config)
+
+    # Step 3: 构建调用对象
+    coro = agent.ainvoke(
+        {"messages": [message]},
+        config=config
+    )
+    print("[DEBUG] Awaiting agent.ainvoke...")
+
+    # Step 4: 包裹 timeout，方便定位错误
+    try:
+        response = await asyncio.wait_for(coro, timeout=timeout_seconds)
+    except asyncio.TimeoutError:
+        print("[ERROR] Timeout occurred during agent.ainvoke")
+        raise
+    except Exception as e:
+        print("[ERROR] Exception during agent.ainvoke:", e)
+        raise
+
+    # Step 5: 输出响应
+    print("[DEBUG] Response:", response)
+    return response
 
 async def astream_graph(
     graph: CompiledStateGraph,

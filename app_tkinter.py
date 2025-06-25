@@ -164,6 +164,7 @@ SYSTEM_INFO = """<ROLE>
 </OUTPUT_FORMAT>
 """
 
+from utils import run_agent_query_debug
 
 class MCPAgentApp:
     """MCP Agent Tkinter 桌面应用主类"""
@@ -787,17 +788,34 @@ class MCPAgentApp:
                 start_time = time.time()
                 
                 try:
-                    # 使用普通调用（非流式）
-                    response = await asyncio.wait_for(
-                        self.agent.ainvoke(
-                            {"messages": [HumanMessage(content=query)]},
-                            config=RunnableConfig(
-                                recursion_limit=self.recursion_limit.get(),
-                                thread_id=self.thread_id,
+                    if False:
+                        # 使用普通调用（非流式）
+                        response = await asyncio.wait_for(
+                            self.agent.ainvoke(
+                                {"messages": [HumanMessage(content=query)]},
+                                config=RunnableConfig(
+                                    recursion_limit=self.recursion_limit.get(),
+                                    thread_id=self.thread_id,
+                                ),
                             ),
-                        ),
-                        timeout=self.timeout_seconds.get(),
-                    )
+                            timeout=self.timeout_seconds.get(),
+                        )
+                    else:
+                        # 原版运行
+                        #response = await run_agent_query(
+                        #   self.agent, 
+                        #   query, 
+                        #   self.recursion_limit.get(), 
+                        #   self.thread_id, 
+                        #   self.timeout_seconds.get())
+                        # 调试运行
+                        response = await run_agent_query_debug(
+                            self.agent, 
+                            query,
+                            self.recursion_limit.get(), 
+                            self.thread_id, 
+                            self.timeout_seconds.get())
+
                     
                     logger.info(f"Agent响应类型: {type(response)}")
                     logger.info(f"Agent响应键: {list(response.keys()) if isinstance(response, dict) else 'N/A'}")
