@@ -1,5 +1,5 @@
-IF NOT EXIST "doclayout\doclayout.exe" (
-    tar -xf doclayout.zip
+IF NOT EXIST "GraphAgentDesktop\GraphAgentDesktop.exe" (
+    tar -xf GraphAgentDesktop.zip
 )
 
 gitbigfileftp.exe /DownloadRemote /NoTipInfo /NoCheckFile .
@@ -10,20 +10,3 @@ IF %ERRORLEVEL% EQU 0 (
     timeout /T 5 /NOBREAK >nul
     gitbigfileftp.exe /DownloadRemote /NoTipInfo /NoCheckFile .
 )
-
-setlocal
-
-:: 获取当前用户名
-set "USERPROFILE=%USERPROFILE%"
-
-:: 目标目录
-set "DEST_DIR=%USERPROFILE%\.cache\torch\hub\checkpoints"
-
-:: 确保目标目录存在
-if not exist "%DEST_DIR%" mkdir "%DEST_DIR%"
-
-:: 拷贝文件
-copy /Y "doclayout\models.cache\resnet18-f37072fd.pth" "%DEST_DIR%"
-
-echo 文件已拷贝到 %DEST_DIR%
-endlocal
