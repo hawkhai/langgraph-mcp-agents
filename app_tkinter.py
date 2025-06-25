@@ -645,8 +645,9 @@ class MCPAgentApp:
                     
                     # 显示工具信息（如果有）
                     if final_tool:
-                        logger.info(f"添加工具信息: 长度={len(final_tool)}")
-                        self.root.after(0, lambda: self.append_to_chat("工具", final_tool, "tool"))
+                        logger.info(f"使用最终工具信息更新: 长度={len(final_tool)}")
+                        # 使用update_tool_info代替append_to_chat来避免重复
+                        self.root.after(0, lambda tool=final_tool: self.update_tool_info(tool))
                 
             except asyncio.TimeoutError:
                 error_msg = f"❌ 查询超时（超过 {self.timeout_seconds.get()} 秒）"
@@ -1146,26 +1147,39 @@ class MCPAgentApp:
     
     def update_tool_info(self, tool_info):
         """更新工具调用信息显示"""
-        if tool_info.strip():
-            # 检查是否已经有工具消息，如果有就更新，否则新建
-            if not hasattr(self, '_current_tool_message_start'):
-                self.append_to_chat("工具", tool_info, "tool")
-                self._current_tool_message_start = self.chat_history.index("end-2l linestart")
-            else:
-                try:
-                    timestamp = datetime.now().strftime("%H:%M:%S")
-                    self.chat_history.delete(self._current_tool_message_start, tk.END)
-                    
-                    # 直接插入新的工具消息，不通过append_to_chat避免重复设置位置
-                    self.chat_history.insert(tk.END, f"[{timestamp}] 工具: {tool_info}\n")
-                    self.chat_history.see(tk.END)
-                    
-                    # 应用颜色标签
-                    start_line = float(self.chat_history.index(tk.END)) - 2
-                    self.chat_history.tag_add("msg_tool", f"{start_line:.1f}", f"{start_line + 1:.1f}")
-                    self.chat_history.tag_config("msg_tool", foreground="green")
-                except tk.TclError:
-                    self.append_to_chat("工具", tool_info, "tool")
+        if not tool_info.strip():
+            return
+        
+        try:
+            logger.info(f"更新工具信息: 信息长度={len(tool_info)}")
+            
+            # 查找最后一条工具消息并更新，如果不存在则添加新的
+            found_tool_msg = False
+            for i in range(len(self.chat_messages) - 1, -1, -1):
+                if self.chat_messages[i]["type"] == "tool":
+                    # 只有在有新信息时才更新（避免重复添加相同的信息）
+                    if self.chat_messages[i]["message"] != tool_info:
+                        logger.info(f"更新工具消息 {i}")
+                        self.chat_messages[i]["message"] = tool_info
+                        self.chat_messages[i]["timestamp"] = datetime.now().strftime("%H:%M:%S")
+                    found_tool_msg = True
+                    break
+            
+            if not found_tool_msg:
+                logger.info("添加新的工具消息")
+                self.chat_messages.append({
+                    "sender": "工具",
+                    "message": tool_info,
+                    "timestamp": datetime.now().strftime("%H:%M:%S"),
+                    "type": "tool"
+                })
+            
+            # 重建聊天历史
+            self.rebuild_chat_history()
+        except Exception as e:
+            logger.error(f"更新工具信息时出错: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
     
     def update_status(self):
         """更新状态信息"""
