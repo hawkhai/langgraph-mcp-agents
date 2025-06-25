@@ -35,14 +35,26 @@ async def run_agent_query_debug(agent, query, recursion_limit, thread_id, timeou
     )
     print("[DEBUG] RunnableConfig:", config)
 
-    # Step 3: 构建调用对象
+    # Step 3: 构建请求对象
+    req = {"messages": [message]}
+    print("[DEBUG] Request:")
+    print(f"  - Type: {type(req)}")
+    print(f"  - Content: {req}")
+    print(f"  - Messages count: {len(req['messages'])}")
+    for i, msg in enumerate(req['messages']):
+        print(f"    Message {i+1}:")
+        print(f"      - Type: {type(msg)}")
+        print(f"      - Content: {msg.content}")
+        print(f"      - Additional attributes: {msg.additional_kwargs if hasattr(msg, 'additional_kwargs') else {}}")
+
+    # Step 4: 构建调用对象
     coro = agent.ainvoke(
-        {"messages": [message]},
+        req,
         config=config
     )
     print("[DEBUG] Awaiting agent.ainvoke...")
 
-    # Step 4: 包裹 timeout，方便定位错误
+    # Step 5: 包裹 timeout，方便定位错误
     try:
         response = await asyncio.wait_for(coro, timeout=timeout_seconds)
     except asyncio.TimeoutError:
@@ -52,8 +64,13 @@ async def run_agent_query_debug(agent, query, recursion_limit, thread_id, timeou
         print("[ERROR] Exception during agent.ainvoke:", e)
         raise
 
-    # Step 5: 输出响应
-    print("[DEBUG] Response:", response)
+    # Step 6: 输出响应
+    print("[DEBUG] Response:")
+    print(f"  - Type: {type(response)}")
+    print(f"  - Content: {response}")
+    if isinstance(response, dict):
+        for key, value in response.items():
+            print(f"  - {key}: {type(value)} = {value}")
     return response
 
 async def astream_graph(

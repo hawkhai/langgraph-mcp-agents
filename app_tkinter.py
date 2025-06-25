@@ -788,7 +788,7 @@ class MCPAgentApp:
                 start_time = time.time()
                 
                 try:
-                    if not "debug" in sys.argv:
+                    if not "--debug" in sys.argv:
                         # 使用普通调用（非流式）
                         response = await run_agent_query(
                             self.agent, 
