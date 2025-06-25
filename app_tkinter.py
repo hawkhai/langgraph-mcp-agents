@@ -198,6 +198,9 @@ class MCPAgentApp:
         self.streaming_enabled = tk.BooleanVar(value=False)  # 默认使用普通返回
         self.mcp_config = {}
         
+        # 聊天历史存储
+        self.chat_messages = []  # 存储结构化的聊天消息
+        
         # 创建 UI
         self.create_widgets()
         self.load_config()
@@ -567,12 +570,11 @@ class MCPAgentApp:
         
         # 清空聊天历史
         self.chat_history.delete(1.0, tk.END)
+        self.chat_messages = []
         
         # 添加重置消息
         timestamp = datetime.now().strftime("%H:%M:%S")
-        self.chat_history.insert(tk.END, f"[{timestamp}] 系统: ✅ 对话已重置。\n")
-        self.chat_history.tag_add("msg_system", "end-2l", "end-1l")
-        self.chat_history.tag_config("msg_system", foreground="orange")
+        self.append_to_chat("系统", "✅ 对话已重置。", "system")
         
         logger.info("对话已重置")
     
@@ -658,18 +660,32 @@ class MCPAgentApp:
                 )
                 resp, final_text, final_tool = future.result(timeout=self.timeout_seconds.get())
                 
-                if "error" in resp:
+                logger.info(f"普通模式响应: resp类型={type(resp)}, final_text='{final_text[:100] if final_text else None}...', final_tool='{final_tool[:50] if final_tool else None}...'")
+                
+                if isinstance(resp, dict) and "error" in resp:
                     # 替换思考占位符为错误消息
+                    logger.info("准备替换为错误消息")
                     self.root.after(0, lambda: self.replace_last_assistant_message(resp["error"]))
                 else:
                     # 替换思考占位符为最终内容
                     if final_text:
+                        logger.info(f"准备替换助手消息，文本长度: {len(final_text)}")
                         self.root.after(0, lambda: self.replace_last_assistant_message(final_text))
-                    if final_tool:
-                        self.root.after(0, lambda: self.append_to_chat("工具", final_tool, "tool"))
+                    else:
+                        # 如果没有最终文本，尝试从响应中提取
+                        fallback_text = "收到回复但无法解析内容"
+                        if isinstance(resp, dict) and "messages" in resp:
+                            fallback_text = f"响应包含 {len(resp['messages'])} 个消息"
+                        logger.info(f"使用回退文本: {fallback_text}")
+                        self.root.after(0, lambda: self.replace_last_assistant_message(fallback_text))
                 
+                if final_tool:
+                    logger.info(f"准备添加工具消息，长度: {len(final_tool)}")
+                    self.root.after(0, lambda: self.append_to_chat("工具", final_tool, "tool"))
+            
             except asyncio.TimeoutError:
                 error_msg = f"❌ 查询超时（超过 {self.timeout_seconds.get()} 秒）"
+                logger.error(error_msg)
                 self.root.after(0, lambda: self.replace_last_assistant_message(error_msg))
             except Exception as e:
                 error_msg = f"❌ 处理异常: {str(e)}"
@@ -771,28 +787,43 @@ class MCPAgentApp:
                         timeout=self.timeout_seconds.get(),
                     )
                     
+                    logger.info(f"Agent响应类型: {type(response)}")
+                    logger.info(f"Agent响应键: {list(response.keys()) if isinstance(response, dict) else 'N/A'}")
+                    
                     # 处理响应
                     final_text = ""
                     final_tool = ""
                     
                     if "messages" in response:
-                        for msg in response["messages"]:
+                        logger.info(f"找到 {len(response['messages'])} 个消息")
+                        for i, msg in enumerate(response["messages"]):
+                            logger.info(f"消息 {i}: 类型={type(msg)}, 有content属性={hasattr(msg, 'content')}")
                             if hasattr(msg, 'content'):
-                                if isinstance(msg.content, str):
-                                    final_text += msg.content
-                                elif isinstance(msg.content, list):
-                                    for content_part in msg.content:
+                                content = msg.content
+                                logger.info(f"消息 {i} 内容类型: {type(content)}")
+                                if isinstance(content, str):
+                                    final_text += content
+                                    logger.info(f"添加字符串内容: {content[:50]}...")
+                                elif isinstance(content, list):
+                                    logger.info(f"处理列表内容，长度: {len(content)}")
+                                    for j, content_part in enumerate(content):
                                         if isinstance(content_part, dict):
                                             if 'text' in content_part:
                                                 final_text += content_part['text']
+                                                logger.info(f"添加text字段: {content_part['text'][:50]}...")
                                             elif 'content' in content_part:
                                                 final_text += str(content_part['content'])
-                            
-                            # 处理工具调用信息
-                            if hasattr(msg, 'additional_kwargs') and 'tool_calls' in msg.additional_kwargs:
-                                for tool_call in msg.additional_kwargs['tool_calls']:
-                                    final_tool += f"🔧 工具调用: {tool_call.get('function', {}).get('name', 'Unknown')}\n"
-                                    final_tool += f"参数: {tool_call.get('function', {}).get('arguments', '')}\n\n"
+                                                logger.info(f"添加content字段: {str(content_part['content'])[:50]}...")
+                        
+                        # 处理工具调用信息
+                        if hasattr(msg, 'additional_kwargs') and 'tool_calls' in msg.additional_kwargs:
+                            for tool_call in msg.additional_kwargs['tool_calls']:
+                                final_tool += f"🔧 工具调用: {tool_call.get('function', {}).get('name', 'Unknown')}\n"
+                                final_tool += f"参数: {tool_call.get('function', {}).get('arguments', '')}\n\n"
+                    else:
+                        logger.warning("响应中没有找到'messages'键")
+                    
+                    logger.info(f"最终文本长度: {len(final_text)}, 工具信息长度: {len(final_tool)}")
                     
                     # 记录模型调用
                     end_time = time.time()
@@ -940,20 +971,127 @@ class MCPAgentApp:
         else:
             color = "black"
         
+        # 记录消息的开始位置（在插入之前）
+        start_pos = self.chat_history.index(tk.END)
+        
         # 插入消息
-        self.chat_history.insert(tk.END, f"[{timestamp}] {sender}: {message}\n\n")
+        full_message = f"[{timestamp}] {sender}: {message}\n\n"
+        self.chat_history.insert(tk.END, full_message)
         self.chat_history.see(tk.END)
         
+        # 记录消息的结束位置（在插入之后）
+        end_pos = self.chat_history.index(tk.END)
+        
+        # 如果是助手消息，保存完整的位置信息
+        if msg_type == "assistant":
+            self._current_assistant_message_start = start_pos
+            self._current_assistant_message_end = end_pos
+            logger.debug(f"记录助手消息位置: {start_pos} 到 {end_pos}")
+        elif msg_type == "tool":
+            self._current_tool_message_start = start_pos
+            self._current_tool_message_end = end_pos
+        
         # 应用颜色标签
-        start_line = float(self.chat_history.index(tk.END)) - 2
-        self.chat_history.tag_add(f"msg_{msg_type}", f"{start_line:.1f}", f"{start_line + 1:.1f}")
+        self.chat_history.tag_add(f"msg_{msg_type}", start_pos, end_pos)
         self.chat_history.tag_config(f"msg_{msg_type}", foreground=color)
+        
+        # 保存聊天历史
+        self.chat_messages.append({
+            "sender": sender,
+            "message": message,
+            "timestamp": timestamp,
+            "type": msg_type
+        })
     
     def replace_last_assistant_message(self, message: str):
         """替换最后一条助手消息"""
-        if hasattr(self, '_current_assistant_message_start'):
-            self.chat_history.delete(self._current_assistant_message_start, "end-1l")
+        try:
+            logger.info(f"开始替换助手消息，新消息长度: {len(message)}")
+            logger.info(f"当前消息历史长度: {len(self.chat_messages)}")
+            
+            # 打印当前消息历史
+            for i, msg in enumerate(self.chat_messages):
+                logger.info(f"消息 {i}: {msg['type']} - {msg['sender']} - {msg['message'][:50]}...")
+            
+            # 找到最后一条助手消息并替换
+            found_assistant = False
+            for i in range(len(self.chat_messages) - 1, -1, -1):
+                if self.chat_messages[i]["type"] == "assistant":
+                    logger.info(f"找到助手消息在位置 {i}: {self.chat_messages[i]['message'][:50]}...")
+                    # 更新最后一条助手消息
+                    old_message = self.chat_messages[i]["message"]
+                    self.chat_messages[i]["message"] = message
+                    self.chat_messages[i]["timestamp"] = datetime.now().strftime("%H:%M:%S")
+                    logger.info(f"消息已更新: '{old_message[:50]}...' -> '{message[:50]}...'")
+                    found_assistant = True
+                    break
+            
+            if not found_assistant:
+                logger.warning("没有找到助手消息，添加新的")
+                # 如果没有找到助手消息，添加新的
+                self.chat_messages.append({
+                    "sender": "助手",
+                    "message": message,
+                    "timestamp": datetime.now().strftime("%H:%M:%S"),
+                    "type": "assistant"
+                })
+            
+            # 重建聊天历史显示
+            logger.info("开始重建聊天历史")
+            self.rebuild_chat_history()
+            logger.info("助手消息已成功替换")
+            
+        except Exception as e:
+            logger.error(f"替换助手消息时出错: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            # 回退到添加新消息
             self.append_to_chat("助手", message, "assistant")
+    
+    def rebuild_chat_history(self):
+        """重建聊天历史显示"""
+        try:
+            # 清空当前显示
+            self.chat_history.delete(1.0, tk.END)
+            
+            # 重新添加所有消息
+            for msg_data in self.chat_messages:
+                timestamp = msg_data["timestamp"]
+                sender = msg_data["sender"]
+                message = msg_data["message"]
+                msg_type = msg_data["type"]
+                
+                # 根据消息类型设置颜色
+                if msg_type == "user":
+                    color = "blue"
+                elif msg_type == "assistant":
+                    color = "green"
+                elif msg_type == "system":
+                    color = "orange"
+                elif msg_type == "error":
+                    color = "red"
+                elif msg_type == "success":
+                    color = "darkgreen"
+                elif msg_type == "tool":
+                    color = "purple"
+                else:
+                    color = "black"
+                
+                # 插入消息
+                start_pos = self.chat_history.index(tk.END)
+                full_message = f"[{timestamp}] {sender}: {message}\n\n"
+                self.chat_history.insert(tk.END, full_message)
+                end_pos = self.chat_history.index(tk.END)
+                
+                # 应用颜色标签
+                self.chat_history.tag_add(f"msg_{msg_type}", start_pos, end_pos)
+                self.chat_history.tag_config(f"msg_{msg_type}", foreground=color)
+            
+            # 滚动到底部
+            self.chat_history.see(tk.END)
+            
+        except Exception as e:
+            logger.error(f"重建聊天历史时出错: {e}")
     
     def update_streaming_text(self, text):
         """更新流式文本显示"""
@@ -962,11 +1100,16 @@ class MCPAgentApp:
                 # 获取时间戳部分
                 timestamp = datetime.now().strftime("%H:%M:%S")
                 # 删除当前助手消息并替换
-                self.chat_history.delete(self._current_assistant_message_start, "end-1l")
-                self.chat_history.insert(self._current_assistant_message_start, f"[{timestamp}] 助手: {text}\n")
-                self.chat_history.tag_add("msg_assistant", self._current_assistant_message_start, "end-1l")
-                self.chat_history.tag_config("msg_assistant", foreground="blue")
+                self.chat_history.delete(self._current_assistant_message_start, tk.END)
+                
+                # 直接插入新的助手消息，不通过append_to_chat避免重复设置位置
+                self.chat_history.insert(tk.END, f"[{timestamp}] 助手: {text}\n")
                 self.chat_history.see(tk.END)
+                
+                # 应用颜色标签
+                start_line = float(self.chat_history.index(tk.END)) - 2
+                self.chat_history.tag_add("msg_assistant", f"{start_line:.1f}", f"{start_line + 1:.1f}")
+                self.chat_history.tag_config("msg_assistant", foreground="green")
             except tk.TclError:
                 # 如果出错，回退到标准方式
                 self.replace_last_assistant_message(text)
@@ -981,11 +1124,16 @@ class MCPAgentApp:
             else:
                 try:
                     timestamp = datetime.now().strftime("%H:%M:%S")
-                    self.chat_history.delete(self._current_tool_message_start, "end-1l")
-                    self.chat_history.insert(self._current_tool_message_start, f"[{timestamp}] 工具: {tool_info}\n")
-                    self.chat_history.tag_add("msg_tool", self._current_tool_message_start, "end-1l")
-                    self.chat_history.tag_config("msg_tool", foreground="green")
+                    self.chat_history.delete(self._current_tool_message_start, tk.END)
+                    
+                    # 直接插入新的工具消息，不通过append_to_chat避免重复设置位置
+                    self.chat_history.insert(tk.END, f"[{timestamp}] 工具: {tool_info}\n")
                     self.chat_history.see(tk.END)
+                    
+                    # 应用颜色标签
+                    start_line = float(self.chat_history.index(tk.END)) - 2
+                    self.chat_history.tag_add("msg_tool", f"{start_line:.1f}", f"{start_line + 1:.1f}")
+                    self.chat_history.tag_config("msg_tool", foreground="green")
                 except tk.TclError:
                     self.append_to_chat("工具", tool_info, "tool")
     
