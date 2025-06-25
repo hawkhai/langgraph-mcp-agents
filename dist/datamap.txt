@@ -1,4 +1,5 @@
-"gitbigfilex.json" f34a5a16a2459ea5f5d1dfc2aa3aa8d2 538905
+"gitbigfilex.json" 1368bb19c2caa69d719b2b1bbf49f0ab 539113
+"GraphAgentDesktop.exe" 6f148cd6322eeee05db4d69220d1a0d0 609280
 "GraphAgentDesktop\_internal\_asyncio.pyd" 33d0b6de555ddbbbd5ca229bfa91c329 65304
 "GraphAgentDesktop\_internal\_bz2.pyd" 86d1b2a9070cd7d52124126a357ff067 83736
 "GraphAgentDesktop\_internal\_cffi_backend.cp310-win_amd64.pyd" 2baaa98b744915339ae6c016b17c3763 178176
@@ -6044,3 +6045,6 @@
 "GraphAgentDesktop\_internal\zstandard\_cffi.cp310-win_amd64.pyd" 008913e1eabd08fe254e0c9f74bafb64 650752
 "GraphAgentDesktop\_internal\zstandard\backend_c.cp310-win_amd64.pyd" ee146c36c6f83a972594c2621e34212d 519680
 "GraphAgentDesktop\GraphAgentDesktop.exe" 3d3816a9b432cec3deb21fd99d8e2254 51101629
+"launcher.ini" 31731da20735ae725456984e40262c84 101
+"upgrade.bat" c933d2f1645ec0a289c31e5853067af0 690
+"upgrade_launcher.bat" a4cefddf022cf196211ccc0ad291643a 707
